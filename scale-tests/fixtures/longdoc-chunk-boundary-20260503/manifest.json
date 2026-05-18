@@ -1,0 +1,4 @@
+{
+  "documents": 6,
+  "purpose": "PII near chunk boundaries in long documents; includes LLM-required name/address labels."
+}

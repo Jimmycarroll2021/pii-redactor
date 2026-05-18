@@ -1,0 +1,63 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pii-redactor"
+version = "0.1.0"
+description = "Pre-ingestion PII de-identification for Australian government data, using zero-shot LLM detection with checksum validation."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [
+    { name = "Jimmy Carroll", email = "jimmy@solsticeit.com.au" }
+]
+keywords = ["pii", "anonymisation", "redaction", "llama", "australian-government", "privacy"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Security",
+    "Topic :: Text Processing",
+]
+dependencies = [
+    "cryptography>=42.0.0",
+    "requests>=2.31.0",
+]
+
+[project.optional-dependencies]
+hf = ["huggingface_hub>=0.24.0"]
+api = ["fastapi>=0.110.0", "uvicorn[standard]>=0.27.0", "pydantic>=2.6.0"]
+ui = ["gradio>=4.36.0"]
+all = [
+    "huggingface_hub>=0.24.0",
+    "fastapi>=0.110.0",
+    "uvicorn[standard]>=0.27.0",
+    "pydantic>=2.6.0",
+    "gradio>=4.36.0",
+]
+dev = ["pytest>=8.0.0", "ruff>=0.4.0"]
+
+[project.urls]
+Homepage = "https://github.com/JimmyBhoy/pii-redactor"
+Issues = "https://github.com/JimmyBhoy/pii-redactor/issues"
+
+[project.scripts]
+pii-redactor = "pii_redactor.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["pii_redactor*"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]

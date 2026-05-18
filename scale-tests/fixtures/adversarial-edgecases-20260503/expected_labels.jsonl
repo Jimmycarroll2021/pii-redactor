@@ -1,0 +1,120 @@
+{"id": "adversarial-000-email-dot", "labels": [{"category": "email", "valid": true, "value": "alpha.beta+case99@example-health.org"}]}
+{"id": "adversarial-001-email-ellipsis", "labels": [{"category": "email", "valid": true, "value": "N30@hotmail.com"}]}
+{"id": "adversarial-002-email-hyphen-prose", "labels": [{"category": "email", "valid": true, "value": "splendsolferino@protonmail.com"}]}
+{"id": "adversarial-003-bare-domain", "labels": [{"category": "url", "valid": true, "value": "mail.yoshiehayashi.net"}, {"category": "url", "valid": true, "value": "blog.ncao.com/path?q=1"}]}
+{"id": "adversarial-004-username-dot", "labels": [{"category": "username", "valid": true, "value": "balananthini.girardello"}]}
+{"id": "adversarial-005-username-short-dot", "labels": [{"category": "username", "valid": true, "value": "l.keller"}]}
+{"id": "adversarial-006-username-underscore", "labels": [{"category": "username", "valid": true, "value": "diana_702"}, {"category": "username", "valid": true, "value": "rhonda_2265"}]}
+{"id": "adversarial-007-time-leading", "labels": [{"category": "date", "valid": true, "value": "7:55"}]}
+{"id": "adversarial-008-date-suffix", "labels": [{"category": "date", "valid": true, "value": "June 5th, 1987"}]}
+{"id": "adversarial-009-slash-date-suffix", "labels": [{"category": "date", "valid": true, "value": "31/07/1971"}]}
+{"id": "adversarial-010-phone-intl", "labels": [{"category": "phone", "valid": true, "value": "+1 415-555-0199 ext 42"}, {"category": "phone", "valid": true, "value": "+61 412 345 678"}]}
+{"id": "adversarial-011-generic-ids", "labels": [{"category": "generic_id", "valid": true, "value": "STU-991-A"}, {"category": "generic_id", "valid": true, "value": "123-45-6789"}]}
+{"id": "adversarial-012-email-dot", "labels": [{"category": "email", "valid": true, "value": "alpha.beta+case99@example-health.org"}]}
+{"id": "adversarial-013-email-ellipsis", "labels": [{"category": "email", "valid": true, "value": "N30@hotmail.com"}]}
+{"id": "adversarial-014-email-hyphen-prose", "labels": [{"category": "email", "valid": true, "value": "splendsolferino@protonmail.com"}]}
+{"id": "adversarial-015-bare-domain", "labels": [{"category": "url", "valid": true, "value": "mail.yoshiehayashi.net"}, {"category": "url", "valid": true, "value": "blog.ncao.com/path?q=1"}]}
+{"id": "adversarial-016-username-dot", "labels": [{"category": "username", "valid": true, "value": "balananthini.girardello"}]}
+{"id": "adversarial-017-username-short-dot", "labels": [{"category": "username", "valid": true, "value": "l.keller"}]}
+{"id": "adversarial-018-username-underscore", "labels": [{"category": "username", "valid": true, "value": "diana_702"}, {"category": "username", "valid": true, "value": "rhonda_2265"}]}
+{"id": "adversarial-019-time-leading", "labels": [{"category": "date", "valid": true, "value": "7:55"}]}
+{"id": "adversarial-020-date-suffix", "labels": [{"category": "date", "valid": true, "value": "June 5th, 1987"}]}
+{"id": "adversarial-021-slash-date-suffix", "labels": [{"category": "date", "valid": true, "value": "31/07/1971"}]}
+{"id": "adversarial-022-phone-intl", "labels": [{"category": "phone", "valid": true, "value": "+1 415-555-0199 ext 42"}, {"category": "phone", "valid": true, "value": "+61 412 345 678"}]}
+{"id": "adversarial-023-generic-ids", "labels": [{"category": "generic_id", "valid": true, "value": "STU-991-A"}, {"category": "generic_id", "valid": true, "value": "123-45-6789"}]}
+{"id": "adversarial-024-email-dot", "labels": [{"category": "email", "valid": true, "value": "alpha.beta+case99@example-health.org"}]}
+{"id": "adversarial-025-email-ellipsis", "labels": [{"category": "email", "valid": true, "value": "N30@hotmail.com"}]}
+{"id": "adversarial-026-email-hyphen-prose", "labels": [{"category": "email", "valid": true, "value": "splendsolferino@protonmail.com"}]}
+{"id": "adversarial-027-bare-domain", "labels": [{"category": "url", "valid": true, "value": "mail.yoshiehayashi.net"}, {"category": "url", "valid": true, "value": "blog.ncao.com/path?q=1"}]}
+{"id": "adversarial-028-username-dot", "labels": [{"category": "username", "valid": true, "value": "balananthini.girardello"}]}
+{"id": "adversarial-029-username-short-dot", "labels": [{"category": "username", "valid": true, "value": "l.keller"}]}
+{"id": "adversarial-030-username-underscore", "labels": [{"category": "username", "valid": true, "value": "diana_702"}, {"category": "username", "valid": true, "value": "rhonda_2265"}]}
+{"id": "adversarial-031-time-leading", "labels": [{"category": "date", "valid": true, "value": "7:55"}]}
+{"id": "adversarial-032-date-suffix", "labels": [{"category": "date", "valid": true, "value": "June 5th, 1987"}]}
+{"id": "adversarial-033-slash-date-suffix", "labels": [{"category": "date", "valid": true, "value": "31/07/1971"}]}
+{"id": "adversarial-034-phone-intl", "labels": [{"category": "phone", "valid": true, "value": "+1 415-555-0199 ext 42"}, {"category": "phone", "valid": true, "value": "+61 412 345 678"}]}
+{"id": "adversarial-035-generic-ids", "labels": [{"category": "generic_id", "valid": true, "value": "STU-991-A"}, {"category": "generic_id", "valid": true, "value": "123-45-6789"}]}
+{"id": "adversarial-036-email-dot", "labels": [{"category": "email", "valid": true, "value": "alpha.beta+case99@example-health.org"}]}
+{"id": "adversarial-037-email-ellipsis", "labels": [{"category": "email", "valid": true, "value": "N30@hotmail.com"}]}
+{"id": "adversarial-038-email-hyphen-prose", "labels": [{"category": "email", "valid": true, "value": "splendsolferino@protonmail.com"}]}
+{"id": "adversarial-039-bare-domain", "labels": [{"category": "url", "valid": true, "value": "mail.yoshiehayashi.net"}, {"category": "url", "valid": true, "value": "blog.ncao.com/path?q=1"}]}
+{"id": "adversarial-040-username-dot", "labels": [{"category": "username", "valid": true, "value": "balananthini.girardello"}]}
+{"id": "adversarial-041-username-short-dot", "labels": [{"category": "username", "valid": true, "value": "l.keller"}]}
+{"id": "adversarial-042-username-underscore", "labels": [{"category": "username", "valid": true, "value": "diana_702"}, {"category": "username", "valid": true, "value": "rhonda_2265"}]}
+{"id": "adversarial-043-time-leading", "labels": [{"category": "date", "valid": true, "value": "7:55"}]}
+{"id": "adversarial-044-date-suffix", "labels": [{"category": "date", "valid": true, "value": "June 5th, 1987"}]}
+{"id": "adversarial-045-slash-date-suffix", "labels": [{"category": "date", "valid": true, "value": "31/07/1971"}]}
+{"id": "adversarial-046-phone-intl", "labels": [{"category": "phone", "valid": true, "value": "+1 415-555-0199 ext 42"}, {"category": "phone", "valid": true, "value": "+61 412 345 678"}]}
+{"id": "adversarial-047-generic-ids", "labels": [{"category": "generic_id", "valid": true, "value": "STU-991-A"}, {"category": "generic_id", "valid": true, "value": "123-45-6789"}]}
+{"id": "adversarial-048-email-dot", "labels": [{"category": "email", "valid": true, "value": "alpha.beta+case99@example-health.org"}]}
+{"id": "adversarial-049-email-ellipsis", "labels": [{"category": "email", "valid": true, "value": "N30@hotmail.com"}]}
+{"id": "adversarial-050-email-hyphen-prose", "labels": [{"category": "email", "valid": true, "value": "splendsolferino@protonmail.com"}]}
+{"id": "adversarial-051-bare-domain", "labels": [{"category": "url", "valid": true, "value": "mail.yoshiehayashi.net"}, {"category": "url", "valid": true, "value": "blog.ncao.com/path?q=1"}]}
+{"id": "adversarial-052-username-dot", "labels": [{"category": "username", "valid": true, "value": "balananthini.girardello"}]}
+{"id": "adversarial-053-username-short-dot", "labels": [{"category": "username", "valid": true, "value": "l.keller"}]}
+{"id": "adversarial-054-username-underscore", "labels": [{"category": "username", "valid": true, "value": "diana_702"}, {"category": "username", "valid": true, "value": "rhonda_2265"}]}
+{"id": "adversarial-055-time-leading", "labels": [{"category": "date", "valid": true, "value": "7:55"}]}
+{"id": "adversarial-056-date-suffix", "labels": [{"category": "date", "valid": true, "value": "June 5th, 1987"}]}
+{"id": "adversarial-057-slash-date-suffix", "labels": [{"category": "date", "valid": true, "value": "31/07/1971"}]}
+{"id": "adversarial-058-phone-intl", "labels": [{"category": "phone", "valid": true, "value": "+1 415-555-0199 ext 42"}, {"category": "phone", "valid": true, "value": "+61 412 345 678"}]}
+{"id": "adversarial-059-generic-ids", "labels": [{"category": "generic_id", "valid": true, "value": "STU-991-A"}, {"category": "generic_id", "valid": true, "value": "123-45-6789"}]}
+{"id": "adversarial-060-email-dot", "labels": [{"category": "email", "valid": true, "value": "alpha.beta+case99@example-health.org"}]}
+{"id": "adversarial-061-email-ellipsis", "labels": [{"category": "email", "valid": true, "value": "N30@hotmail.com"}]}
+{"id": "adversarial-062-email-hyphen-prose", "labels": [{"category": "email", "valid": true, "value": "splendsolferino@protonmail.com"}]}
+{"id": "adversarial-063-bare-domain", "labels": [{"category": "url", "valid": true, "value": "mail.yoshiehayashi.net"}, {"category": "url", "valid": true, "value": "blog.ncao.com/path?q=1"}]}
+{"id": "adversarial-064-username-dot", "labels": [{"category": "username", "valid": true, "value": "balananthini.girardello"}]}
+{"id": "adversarial-065-username-short-dot", "labels": [{"category": "username", "valid": true, "value": "l.keller"}]}
+{"id": "adversarial-066-username-underscore", "labels": [{"category": "username", "valid": true, "value": "diana_702"}, {"category": "username", "valid": true, "value": "rhonda_2265"}]}
+{"id": "adversarial-067-time-leading", "labels": [{"category": "date", "valid": true, "value": "7:55"}]}
+{"id": "adversarial-068-date-suffix", "labels": [{"category": "date", "valid": true, "value": "June 5th, 1987"}]}
+{"id": "adversarial-069-slash-date-suffix", "labels": [{"category": "date", "valid": true, "value": "31/07/1971"}]}
+{"id": "adversarial-070-phone-intl", "labels": [{"category": "phone", "valid": true, "value": "+1 415-555-0199 ext 42"}, {"category": "phone", "valid": true, "value": "+61 412 345 678"}]}
+{"id": "adversarial-071-generic-ids", "labels": [{"category": "generic_id", "valid": true, "value": "STU-991-A"}, {"category": "generic_id", "valid": true, "value": "123-45-6789"}]}
+{"id": "adversarial-072-email-dot", "labels": [{"category": "email", "valid": true, "value": "alpha.beta+case99@example-health.org"}]}
+{"id": "adversarial-073-email-ellipsis", "labels": [{"category": "email", "valid": true, "value": "N30@hotmail.com"}]}
+{"id": "adversarial-074-email-hyphen-prose", "labels": [{"category": "email", "valid": true, "value": "splendsolferino@protonmail.com"}]}
+{"id": "adversarial-075-bare-domain", "labels": [{"category": "url", "valid": true, "value": "mail.yoshiehayashi.net"}, {"category": "url", "valid": true, "value": "blog.ncao.com/path?q=1"}]}
+{"id": "adversarial-076-username-dot", "labels": [{"category": "username", "valid": true, "value": "balananthini.girardello"}]}
+{"id": "adversarial-077-username-short-dot", "labels": [{"category": "username", "valid": true, "value": "l.keller"}]}
+{"id": "adversarial-078-username-underscore", "labels": [{"category": "username", "valid": true, "value": "diana_702"}, {"category": "username", "valid": true, "value": "rhonda_2265"}]}
+{"id": "adversarial-079-time-leading", "labels": [{"category": "date", "valid": true, "value": "7:55"}]}
+{"id": "adversarial-080-date-suffix", "labels": [{"category": "date", "valid": true, "value": "June 5th, 1987"}]}
+{"id": "adversarial-081-slash-date-suffix", "labels": [{"category": "date", "valid": true, "value": "31/07/1971"}]}
+{"id": "adversarial-082-phone-intl", "labels": [{"category": "phone", "valid": true, "value": "+1 415-555-0199 ext 42"}, {"category": "phone", "valid": true, "value": "+61 412 345 678"}]}
+{"id": "adversarial-083-generic-ids", "labels": [{"category": "generic_id", "valid": true, "value": "STU-991-A"}, {"category": "generic_id", "valid": true, "value": "123-45-6789"}]}
+{"id": "adversarial-084-email-dot", "labels": [{"category": "email", "valid": true, "value": "alpha.beta+case99@example-health.org"}]}
+{"id": "adversarial-085-email-ellipsis", "labels": [{"category": "email", "valid": true, "value": "N30@hotmail.com"}]}
+{"id": "adversarial-086-email-hyphen-prose", "labels": [{"category": "email", "valid": true, "value": "splendsolferino@protonmail.com"}]}
+{"id": "adversarial-087-bare-domain", "labels": [{"category": "url", "valid": true, "value": "mail.yoshiehayashi.net"}, {"category": "url", "valid": true, "value": "blog.ncao.com/path?q=1"}]}
+{"id": "adversarial-088-username-dot", "labels": [{"category": "username", "valid": true, "value": "balananthini.girardello"}]}
+{"id": "adversarial-089-username-short-dot", "labels": [{"category": "username", "valid": true, "value": "l.keller"}]}
+{"id": "adversarial-090-username-underscore", "labels": [{"category": "username", "valid": true, "value": "diana_702"}, {"category": "username", "valid": true, "value": "rhonda_2265"}]}
+{"id": "adversarial-091-time-leading", "labels": [{"category": "date", "valid": true, "value": "7:55"}]}
+{"id": "adversarial-092-date-suffix", "labels": [{"category": "date", "valid": true, "value": "June 5th, 1987"}]}
+{"id": "adversarial-093-slash-date-suffix", "labels": [{"category": "date", "valid": true, "value": "31/07/1971"}]}
+{"id": "adversarial-094-phone-intl", "labels": [{"category": "phone", "valid": true, "value": "+1 415-555-0199 ext 42"}, {"category": "phone", "valid": true, "value": "+61 412 345 678"}]}
+{"id": "adversarial-095-generic-ids", "labels": [{"category": "generic_id", "valid": true, "value": "STU-991-A"}, {"category": "generic_id", "valid": true, "value": "123-45-6789"}]}
+{"id": "adversarial-096-email-dot", "labels": [{"category": "email", "valid": true, "value": "alpha.beta+case99@example-health.org"}]}
+{"id": "adversarial-097-email-ellipsis", "labels": [{"category": "email", "valid": true, "value": "N30@hotmail.com"}]}
+{"id": "adversarial-098-email-hyphen-prose", "labels": [{"category": "email", "valid": true, "value": "splendsolferino@protonmail.com"}]}
+{"id": "adversarial-099-bare-domain", "labels": [{"category": "url", "valid": true, "value": "mail.yoshiehayashi.net"}, {"category": "url", "valid": true, "value": "blog.ncao.com/path?q=1"}]}
+{"id": "adversarial-100-username-dot", "labels": [{"category": "username", "valid": true, "value": "balananthini.girardello"}]}
+{"id": "adversarial-101-username-short-dot", "labels": [{"category": "username", "valid": true, "value": "l.keller"}]}
+{"id": "adversarial-102-username-underscore", "labels": [{"category": "username", "valid": true, "value": "diana_702"}, {"category": "username", "valid": true, "value": "rhonda_2265"}]}
+{"id": "adversarial-103-time-leading", "labels": [{"category": "date", "valid": true, "value": "7:55"}]}
+{"id": "adversarial-104-date-suffix", "labels": [{"category": "date", "valid": true, "value": "June 5th, 1987"}]}
+{"id": "adversarial-105-slash-date-suffix", "labels": [{"category": "date", "valid": true, "value": "31/07/1971"}]}
+{"id": "adversarial-106-phone-intl", "labels": [{"category": "phone", "valid": true, "value": "+1 415-555-0199 ext 42"}, {"category": "phone", "valid": true, "value": "+61 412 345 678"}]}
+{"id": "adversarial-107-generic-ids", "labels": [{"category": "generic_id", "valid": true, "value": "STU-991-A"}, {"category": "generic_id", "valid": true, "value": "123-45-6789"}]}
+{"id": "adversarial-108-email-dot", "labels": [{"category": "email", "valid": true, "value": "alpha.beta+case99@example-health.org"}]}
+{"id": "adversarial-109-email-ellipsis", "labels": [{"category": "email", "valid": true, "value": "N30@hotmail.com"}]}
+{"id": "adversarial-110-email-hyphen-prose", "labels": [{"category": "email", "valid": true, "value": "splendsolferino@protonmail.com"}]}
+{"id": "adversarial-111-bare-domain", "labels": [{"category": "url", "valid": true, "value": "mail.yoshiehayashi.net"}, {"category": "url", "valid": true, "value": "blog.ncao.com/path?q=1"}]}
+{"id": "adversarial-112-username-dot", "labels": [{"category": "username", "valid": true, "value": "balananthini.girardello"}]}
+{"id": "adversarial-113-username-short-dot", "labels": [{"category": "username", "valid": true, "value": "l.keller"}]}
+{"id": "adversarial-114-username-underscore", "labels": [{"category": "username", "valid": true, "value": "diana_702"}, {"category": "username", "valid": true, "value": "rhonda_2265"}]}
+{"id": "adversarial-115-time-leading", "labels": [{"category": "date", "valid": true, "value": "7:55"}]}
+{"id": "adversarial-116-date-suffix", "labels": [{"category": "date", "valid": true, "value": "June 5th, 1987"}]}
+{"id": "adversarial-117-slash-date-suffix", "labels": [{"category": "date", "valid": true, "value": "31/07/1971"}]}
+{"id": "adversarial-118-phone-intl", "labels": [{"category": "phone", "valid": true, "value": "+1 415-555-0199 ext 42"}, {"category": "phone", "valid": true, "value": "+61 412 345 678"}]}
+{"id": "adversarial-119-generic-ids", "labels": [{"category": "generic_id", "valid": true, "value": "STU-991-A"}, {"category": "generic_id", "valid": true, "value": "123-45-6789"}]}

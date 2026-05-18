@@ -1,0 +1,26 @@
+name: PII production gate
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  production-gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install package
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e .
+      - name: Run deterministic production gate
+        run: |
+          python scale-tests/run_production_gate.py \
+            --registry scale-tests/fixtures/registry-autonomous.json \
+            --skip-encrypted-audit \
+            --out scale-tests/runs/ci-production-gate

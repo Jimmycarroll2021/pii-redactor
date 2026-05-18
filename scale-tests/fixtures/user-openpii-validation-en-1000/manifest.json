@@ -1,0 +1,10 @@
+{
+  "documents": 1000,
+  "label_counts": {
+    "address": 405,
+    "date": 347,
+    "email": 126,
+    "name": 1327
+  },
+  "source": "scale-tests\\external\\user-supplied\\archive (1).zip:data/validation/test.jsonl"
+}

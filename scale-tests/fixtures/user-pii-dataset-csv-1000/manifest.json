@@ -1,0 +1,12 @@
+{
+  "documents": 1000,
+  "label_counts": {
+    "address": 1000,
+    "email": 1000,
+    "name": 1000,
+    "phone": 1000,
+    "url": 284,
+    "username": 284
+  },
+  "source": "scale-tests\\external\\user-supplied\\archive.zip"
+}

@@ -1,0 +1,233 @@
+{
+  "fixtures": [
+    {
+      "category_counts": {
+        "address": 588,
+        "email": 350,
+        "username": 282
+      },
+      "document_count": 500,
+      "documents": "scale-tests/fixtures/ai4privacy-openpii-english-500/documents.jsonl",
+      "expected": "scale-tests/fixtures/ai4privacy-openpii-english-500/expected_labels.jsonl",
+      "id": "ai4privacy-openpii-english-500",
+      "qwen_sample": false,
+      "required": true,
+      "tier": "external"
+    },
+    {
+      "category_counts": {
+        "address": 228,
+        "date_of_birth": 285,
+        "email": 141,
+        "generic_id": 233,
+        "name": 129,
+        "phone": 107,
+        "url": 2,
+        "username": 30
+      },
+      "document_count": 500,
+      "documents": "scale-tests/fixtures/gretel-pii-masking-en-500/documents.jsonl",
+      "expected": "scale-tests/fixtures/gretel-pii-masking-en-500/expected_labels.jsonl",
+      "id": "gretel-pii-masking-en-500",
+      "qwen_sample": false,
+      "required": true,
+      "tier": "external"
+    },
+    {
+      "category_counts": {
+        "address": 2,
+        "email": 39,
+        "generic_id": 78,
+        "name": 1365,
+        "phone": 6,
+        "url": 110,
+        "username": 1
+      },
+      "document_count": 945,
+      "documents": "scale-tests/fixtures/kaggle-pii-7k-converted/documents.jsonl",
+      "expected": "scale-tests/fixtures/kaggle-pii-7k-converted/expected_labels.jsonl",
+      "id": "kaggle-pii-7k-converted",
+      "qwen_sample": false,
+      "required": true,
+      "tier": "external"
+    },
+    {
+      "category_counts": {
+        "address": 2,
+        "email": 7,
+        "name": 14,
+        "patient_id": 4,
+        "phone": 5,
+        "url": 5
+      },
+      "document_count": 12,
+      "documents": "scale-tests/fixtures/kaggle-pii-diverse-12/documents.jsonl",
+      "expected": "scale-tests/fixtures/kaggle-pii-diverse-12/expected_labels.jsonl",
+      "id": "kaggle-pii-diverse-12",
+      "qwen_sample": true,
+      "required": true,
+      "tier": "external"
+    },
+    {
+      "category_counts": {
+        "abn": 1,
+        "acn": 1,
+        "address": 6,
+        "bsb_account": 1,
+        "crn": 1,
+        "date_of_birth": 4,
+        "driver_licence": 1,
+        "email": 4,
+        "healthcare_identifier": 1,
+        "medical_record_number": 2,
+        "medicare": 2,
+        "name": 6,
+        "passport": 2,
+        "patient_id": 1,
+        "phone": 4,
+        "tfn": 2
+      },
+      "document_count": 6,
+      "documents": "scale-tests/fixtures/pii-context-proof-20260503/documents.jsonl",
+      "expected": "scale-tests/fixtures/pii-context-proof-20260503/expected_labels.jsonl",
+      "id": "pii-context-proof-20260503",
+      "qwen_sample": true,
+      "required": true,
+      "tier": "proof"
+    },
+    {
+      "category_counts": {
+        "address": 1,
+        "date_of_birth": 1,
+        "email": 1,
+        "healthcare_identifier": 1,
+        "medical_record_number": 1,
+        "medicare": 1,
+        "name": 1,
+        "patient_id": 1,
+        "phone": 1,
+        "tfn": 1
+      },
+      "document_count": 1,
+      "documents": "scale-tests/fixtures/pii-hidden-middle-40page-20260503/documents.jsonl",
+      "expected": "scale-tests/fixtures/pii-hidden-middle-40page-20260503/expected_labels.jsonl",
+      "id": "pii-hidden-middle-40page-20260503",
+      "qwen_sample": true,
+      "required": true,
+      "tier": "proof"
+    },
+    {
+      "category_counts": {
+        "abn": 1,
+        "acn": 1,
+        "address": 2,
+        "bsb_account": 1,
+        "crn": 1,
+        "date_of_birth": 2,
+        "driver_licence": 1,
+        "email": 2,
+        "healthcare_identifier": 1,
+        "medical_record_number": 1,
+        "medicare": 1,
+        "name": 2,
+        "passport": 1,
+        "patient_id": 1,
+        "phone": 2,
+        "tfn": 1
+      },
+      "document_count": 2,
+      "documents": "scale-tests/fixtures/pii-proof-20260503/documents.jsonl",
+      "expected": "scale-tests/fixtures/pii-proof-20260503/expected_labels.jsonl",
+      "id": "pii-proof-20260503",
+      "qwen_sample": true,
+      "required": true,
+      "tier": "proof"
+    },
+    {
+      "category_counts": {
+        "abn": 1000,
+        "acn": 1000,
+        "address": 1000,
+        "bsb_account": 1000,
+        "crn": 1000,
+        "date_of_birth": 1000,
+        "driver_licence": 1000,
+        "email": 1000,
+        "healthcare_identifier": 1000,
+        "medical_record_number": 1000,
+        "medicare": 1000,
+        "name": 1000,
+        "passport": 1000,
+        "patient_id": 1000,
+        "phone": 1000,
+        "tfn": 1000
+      },
+      "document_count": 1000,
+      "documents": "scale-tests/fixtures/synthetic-1000-seed42/documents.jsonl",
+      "expected": "scale-tests/fixtures/synthetic-1000-seed42/expected_labels.jsonl",
+      "id": "synthetic-1000-seed42",
+      "qwen_sample": false,
+      "required": true,
+      "tier": "scale"
+    },
+    {
+      "category_counts": {
+        "abn": 2000,
+        "acn": 2000,
+        "address": 2000,
+        "bsb_account": 2000,
+        "crn": 2000,
+        "date_of_birth": 2000,
+        "driver_licence": 2000,
+        "email": 2000,
+        "healthcare_identifier": 2000,
+        "medical_record_number": 2000,
+        "medicare": 2000,
+        "name": 2000,
+        "passport": 2000,
+        "patient_id": 2000,
+        "phone": 2000,
+        "tfn": 2000
+      },
+      "document_count": 2000,
+      "documents": "scale-tests/fixtures/synthetic-2000-seed43/documents.jsonl",
+      "expected": "scale-tests/fixtures/synthetic-2000-seed43/expected_labels.jsonl",
+      "id": "synthetic-2000-seed43",
+      "qwen_sample": false,
+      "required": true,
+      "tier": "scale"
+    },
+    {
+      "category_counts": {
+        "address": 405,
+        "date": 347,
+        "email": 126,
+        "name": 1327
+      },
+      "document_count": 1000,
+      "documents": "scale-tests/fixtures/user-openpii-validation-en-1000/documents.jsonl",
+      "expected": "scale-tests/fixtures/user-openpii-validation-en-1000/expected_labels.jsonl",
+      "id": "user-openpii-validation-en-1000",
+      "qwen_sample": false,
+      "required": true,
+      "tier": "external"
+    },
+    {
+      "category_counts": {
+        "address": 1000,
+        "email": 1000,
+        "name": 1000,
+        "phone": 1000,
+        "url": 284,
+        "username": 219
+      },
+      "document_count": 1000,
+      "documents": "scale-tests/fixtures/user-pii-dataset-csv-1000/documents.jsonl",
+      "expected": "scale-tests/fixtures/user-pii-dataset-csv-1000/expected_labels.jsonl",
+      "id": "user-pii-dataset-csv-1000",
+      "qwen_sample": false,
+      "required": true,
+      "tier": "external"
+    }
+  ]
+}

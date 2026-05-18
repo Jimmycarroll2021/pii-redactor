@@ -1,0 +1,59 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.coverage
+htmlcov/
+build/
+dist/
+
+# Virtual envs
+.venv/
+venv/
+
+# Tooling caches
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Editors / OS
+.idea/
+.vscode/
+*.swp
+.DS_Store
+
+# Secrets / local config (keep .env.example)
+.env
+.env.local
+.huggingface/
+
+# Audit logs (contain test PII)
+audit.jsonl
+audit*.jsonl
+
+# Model weights
+models/*.gguf
+models/*.bin
+*.gguf
+*.bin
+
+# Scale-test artefacts — large, regenerable
+scale-tests/runs/
+scale-tests/external/
+scale-tests/fixtures/external/
+
+# Third-party fixture dumps (regenerable from external sources)
+scale-tests/fixtures/kaggle-complete-*/
+scale-tests/fixtures/ai4privacy-openpii-english-all/
+scale-tests/fixtures/user-openpii-validation-en-all/
+scale-tests/fixtures/user-pii-dataset-csv-all/
+scale-tests/fixtures/kaggle-pii-7k-converted/
+scale-tests/fixtures/gretel-pii-masking-en-all/
+
+# Synthetic-corpus duplicates (kept synthetic-medical-50 + *-20260503 adversarial sets)
+scale-tests/fixtures/synthetic-1000-seed42/
+scale-tests/fixtures/synthetic-2000-seed43/
+scale-tests/fixtures/kaggle-pii-diverse-12/
+
+# Local data dir
+data/

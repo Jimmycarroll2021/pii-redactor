@@ -1,0 +1,5 @@
+{
+  "base_cases": 12,
+  "documents": 120,
+  "purpose": "Adversarial edge cases for embedded PII boundaries and punctuation."
+}

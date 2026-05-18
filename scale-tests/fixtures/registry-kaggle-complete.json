@@ -1,0 +1,130 @@
+{
+  "fixtures": [
+    {
+      "category_counts": {
+        "address": 145117,
+        "date": 118894,
+        "email": 53993,
+        "name": 481468
+      },
+      "document_count": 394730,
+      "documents": "scale-tests/fixtures/kaggle-complete-openpii-500k-train-all/documents.jsonl",
+      "expected": "scale-tests/fixtures/kaggle-complete-openpii-500k-train-all/expected_labels.jsonl",
+      "id": "kaggle-complete-openpii-500k-train-all",
+      "qwen_sample": false,
+      "required": true,
+      "tier": "external"
+    },
+    {
+      "category_counts": {
+        "address": 36017,
+        "date": 29701,
+        "email": 13595,
+        "name": 120240
+      },
+      "document_count": 98587,
+      "documents": "scale-tests/fixtures/kaggle-complete-openpii-500k-validation-all/documents.jsonl",
+      "expected": "scale-tests/fixtures/kaggle-complete-openpii-500k-validation-all/expected_labels.jsonl",
+      "id": "kaggle-complete-openpii-500k-validation-all",
+      "qwen_sample": false,
+      "required": true,
+      "tier": "external"
+    },
+    {
+      "category_counts": {
+        "address": 2,
+        "email": 39,
+        "generic_id": 78,
+        "name": 1365,
+        "phone": 6,
+        "url": 110,
+        "username": 1
+      },
+      "document_count": 945,
+      "documents": "scale-tests/fixtures/kaggle-complete-crapii-cleaned-repository/documents.jsonl",
+      "expected": "scale-tests/fixtures/kaggle-complete-crapii-cleaned-repository/expected_labels.jsonl",
+      "id": "kaggle-complete-crapii-cleaned-repository",
+      "qwen_sample": false,
+      "required": true,
+      "tier": "external"
+    },
+    {
+      "category_counts": {
+        "address": 13,
+        "email": 1,
+        "name": 3036,
+        "phone": 5
+      },
+      "document_count": 2198,
+      "documents": "scale-tests/fixtures/kaggle-complete-persuade-pii/documents.jsonl",
+      "expected": "scale-tests/fixtures/kaggle-complete-persuade-pii/expected_labels.jsonl",
+      "id": "kaggle-complete-persuade-pii",
+      "qwen_sample": false,
+      "required": true,
+      "tier": "external"
+    },
+    {
+      "category_counts": {
+        "address": 2294,
+        "email": 2448,
+        "generic_id": 2304,
+        "name": 5937,
+        "phone": 2388,
+        "url": 3297,
+        "username": 1212
+      },
+      "document_count": 2355,
+      "documents": "scale-tests/fixtures/kaggle-complete-mistral-generated/documents.jsonl",
+      "expected": "scale-tests/fixtures/kaggle-complete-mistral-generated/expected_labels.jsonl",
+      "id": "kaggle-complete-mistral-generated",
+      "qwen_sample": false,
+      "required": true,
+      "tier": "external"
+    },
+    {
+      "category_counts": {
+        "address": 4434,
+        "email": 4434,
+        "name": 4434,
+        "phone": 4434,
+        "url": 1322,
+        "username": 969
+      },
+      "document_count": 4434,
+      "documents": "scale-tests/fixtures/kaggle-complete-pii-external-csv/documents.jsonl",
+      "expected": "scale-tests/fixtures/kaggle-complete-pii-external-csv/expected_labels.jsonl",
+      "id": "kaggle-complete-pii-external-csv",
+      "qwen_sample": false,
+      "required": true,
+      "tier": "external"
+    },
+    {
+      "category_counts": {
+        "address": 5793,
+        "email": 2573,
+        "username": 2131
+      },
+      "document_count": 3923,
+      "documents": "scale-tests/fixtures/kaggle-complete-ai4privacy-en-8k/documents.jsonl",
+      "expected": "scale-tests/fixtures/kaggle-complete-ai4privacy-en-8k/expected_labels.jsonl",
+      "id": "kaggle-complete-ai4privacy-en-8k",
+      "qwen_sample": false,
+      "required": true,
+      "tier": "external"
+    },
+    {
+      "category_counts": {
+        "address": 22159,
+        "email": 9686,
+        "username": 8523
+      },
+      "document_count": 14829,
+      "documents": "scale-tests/fixtures/kaggle-complete-ai4privacy-en-30k/documents.jsonl",
+      "expected": "scale-tests/fixtures/kaggle-complete-ai4privacy-en-30k/expected_labels.jsonl",
+      "id": "kaggle-complete-ai4privacy-en-30k",
+      "qwen_sample": false,
+      "required": true,
+      "tier": "external"
+    }
+  ]
+}

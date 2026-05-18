@@ -1,0 +1,1121 @@
+# De-PII Calibration Review Pack
+
+Backend: `mock`
+Documents: `5`
+
+Reviewer instructions:
+
+- Add false positives: detected items that should not have been redacted.
+- Add false negatives: expected or visible sensitive values that were not redacted.
+- Do not paste real production PII into this file.
+
+## Sample 1: synthetic-mixed-000000
+
+### Redacted Text
+
+```text
+Patient Noah Nguyen attended review. Date of birth: 24/05/1971. Residential address is 58 George Street, Sydney NSW 2692. Contact email [REDACTED_EMAIL_001] and mobile [REDACTED_PHONE_001]. TFN [REDACTED_TFN_001]; ABN [REDACTED_ABN_001]; ACN [REDACTED_ACN_001]. Medicare number [REDACTED_MEDICARE_001]; driver licence NSW[REDACTED_BSB_ACCOUNT_001]; passport [REDACTED_PASSPORT_001]; CRN [REDACTED_CENTRELINK_CRN_001]. Bank details BSB [REDACTED_BSB_ACCOUNT_002], account [REDACTED_DRIVER_LICENCE_001]. Patient ID: [REDACTED_PATIENT_ID_001]; Medical Record Number: MRN [REDACTED_MEDICAL_RECORD_NUMBER_001]; IHI [REDACTED_HEALTHCARE_IDENTIFIER_001].
+```
+
+### Detected PII Table
+
+```json
+[
+  {
+    "category": "email",
+    "confidence": 1.0,
+    "placeholder": "[REDACTED_EMAIL_001]",
+    "span_end": 163,
+    "span_start": 136,
+    "validator_passed": null
+  },
+  {
+    "category": "phone",
+    "confidence": 1.0,
+    "placeholder": "[REDACTED_PHONE_001]",
+    "span_end": 185,
+    "span_start": 175,
+    "validator_passed": null
+  },
+  {
+    "category": "tfn",
+    "confidence": 1.0,
+    "placeholder": "[REDACTED_TFN_001]",
+    "span_end": 202,
+    "span_start": 191,
+    "validator_passed": true
+  },
+  {
+    "category": "abn",
+    "confidence": 1.0,
+    "placeholder": "[REDACTED_ABN_001]",
+    "span_end": 222,
+    "span_start": 208,
+    "validator_passed": true
+  },
+  {
+    "category": "acn",
+    "confidence": 1.0,
+    "placeholder": "[REDACTED_ACN_001]",
+    "span_end": 239,
+    "span_start": 228,
+    "validator_passed": true
+  },
+  {
+    "category": "medicare",
+    "confidence": 1.0,
+    "placeholder": "[REDACTED_MEDICARE_001]",
+    "span_end": 269,
+    "span_start": 257,
+    "validator_passed": true
+  },
+  {
+    "category": "bsb_account",
+    "confidence": 1.0,
+    "placeholder": "[REDACTED_BSB_ACCOUNT_001]",
+    "span_end": 295,
+    "span_start": 289,
+    "validator_passed": true
+  },
+  {
+    "category": "passport",
+    "confidence": 1.0,
+    "placeholder": "[REDACTED_PASSPORT_001]",
+    "span_end": 314,
+    "span_start": 306,
+    "validator_passed": null
+  },
+  {
+    "category": "centrelink_crn",
+    "confidence": 1.0,
+    "placeholder": "[REDACTED_CENTRELINK_CRN_001]",
+    "span_end": 330,
+    "span_start": 320,
+    "validator_passed": null
+  },
+  {
+    "category": "bsb_account",
+    "confidence": 1.0,
+    "placeholder": "[REDACTED_BSB_ACCOUNT_002]",
+    "span_end": 356,
+    "span_start": 349,
+    "validator_passed": true
+  },
+  {
+    "category": "driver_licence",
+    "confidence": 1.0,
+    "placeholder": "[REDACTED_DRIVER_LICENCE_001]",
+    "span_end": 374,
+    "span_start": 366,
+    "validator_passed": null
+  },
+  {
+    "category": "patient_id",
+    "confidence": 1.0,
+    "placeholder": "[REDACTED_PATIENT_ID_001]",
+    "span_end": 398,
+    "span_start": 388,
+    "validator_passed": null
+  },
+  {
+    "category": "medical_record_number",
+    "confidence": 1.0,
+    "placeholder": "[REDACTED_MEDICAL_RECORD_NUMBER_001]",
+    "span_end": 434,
+    "span_start": 427,
+    "validator_passed": null
+  },
+  {
+    "category": "healthcare_identifier",
+    "confidence": 1.0,
+    "placeholder": "[REDACTED_HEALTHCARE_IDENTIFIER_001]",
+    "span_end": 459,
+    "span_start": 440,
+    "validator_passed": null
+  }
+]
+```
+
+### Expected Labels
+
+```json
+[
+  {
+    "category": "name",
+    "valid": true,
+    "value": "Noah Nguyen"
+  },
+  {
+    "category": "date_of_birth",
+    "valid": true,
+    "value": "24/05/1971"
+  },
+  {
+    "category": "address",
+    "valid": true,
+    "value": "58 George Street, Sydney NSW 2692"
+  },
+  {
+    "category": "email",
+    "valid": true,
+    "value": "noah.nguyen0@example.gov.au"
+  },
+  {
+    "category": "phone",
+    "valid": true,
+    "value": "0483197857"
+  },
+  {
+    "category": "tfn",
+    "valid": true,
+    "value": "123 456 782"
+  },
+  {
+    "category": "abn",
+    "valid": true,
+    "value": "53 004 085 616"
+  },
+  {
+    "category": "acn",
+    "valid": true,
+    "value": "004 085 616"
+  },
+  {
+    "category": "medicare",
+    "valid": true,
+    "value": "2123 45670 1"
+  },
+  {
+    "category": "driver_licence",
+    "valid": true,
+    "value": "NSW191161"
+  },
+  {
+    "category": "passport",
+    "valid": true,
+    "value": "N8078673"
+  },
+  {
+    "category": "crn",
+    "valid": true,
+    "value": "134126396A"
+  },
+  {
+    "category": "bsb_account",
+    "valid": true,
+    "value": "130-195"
+  },
+  {
+    "category": "patient_id",
+    "valid": true,
+    "value": "PID-343962"
+  },
+  {
+    "category": "medical_record_number",
+    "valid": true,
+    "value": "MRN 9478454"
+  },
+  {
+    "category": "healthcare_identifier",
+    "valid": true,
+    "value": "8003 6000 0000 0000"
+  }
+]
+```
+
+### Reviewer Findings
+
+False positives:
+
+False negatives:
+
+Notes:
+
+## Sample 2: synthetic-mixed-000001
+
+### Redacted Text
+
+```text
+Patient Zoe Brown attended review. Date of birth: 23/11/1993. Residential address is 57 Queen Street, Adelaide NSW 2284. Contact email [REDACTED_EMAIL_001] and mobile [REDACTED_PHONE_001]. TFN [REDACTED_TFN_001]; ABN [REDACTED_ABN_001]; ACN [REDACTED_ACN_001]. Medicare number [REDACTED_MEDICARE_001]; driver licence NSW[REDACTED_BSB_ACCOUNT_001]; passport [REDACTED_PASSPORT_001]; CRN [REDACTED_CENTRELINK_CRN_001]. Bank details BSB [REDACTED_BSB_ACCOUNT_002], account [REDACTED_DRIVER_LICENCE_001]. Patient ID: [REDACTED_PATIENT_ID_001]; Medical Record Number: MRN [REDACTED_MEDICAL_RECORD_NUMBER_001]; IHI [REDACTED_HEALTHCARE_IDENTIFIER_001].
+```
+
+### Detected PII Table
+
+```json
+[
+  {
+    "category": "email",
+    "confidence": 1.0,
+    "placeholder": "[REDACTED_EMAIL_001]",
+    "span_end": 160,
+    "span_start": 135,
+    "validator_passed": null
+  },
+  {
+    "category": "phone",
+    "confidence": 1.0,
+    "placeholder": "[REDACTED_PHONE_001]",
+    "span_end": 182,
+    "span_start": 172,
+    "validator_passed": null
+  },
+  {
+    "category": "tfn",
+    "confidence": 1.0,
+    "placeholder": "[REDACTED_TFN_001]",
+    "span_end": 199,
+    "span_start": 188,
+    "validator_passed": true
+  },
+  {
+    "category": "abn",
+    "confidence": 1.0,
+    "placeholder": "[REDACTED_ABN_001]",
+    "span_end": 219,
+    "span_start": 205,
+    "validator_passed": true
+  },
+  {
+    "category": "acn",
+    "confidence": 1.0,
+    "placeholder": "[REDACTED_ACN_001]",
+    "span_end": 236,
+    "span_start": 225,
+    "validator_passed": true
+  },
+  {
+    "category": "medicare",
+    "confidence": 1.0,
+    "placeholder": "[REDACTED_MEDICARE_001]",
+    "span_end": 266,
+    "span_start": 254,
+    "validator_passed": true
+  },
+  {
+    "category": "bsb_account",
+    "confidence": 1.0,
+    "placeholder": "[REDACTED_BSB_ACCOUNT_001]",
+    "span_end": 292,
+    "span_start": 286,
+    "validator_passed": true
+  },
+  {
+    "category": "passport",
+    "confidence": 1.0,
+    "placeholder": "[REDACTED_PASSPORT_001]",
+    "span_end": 311,
+    "span_start": 303,
+    "validator_passed": null
+  },
+  {
+    "category": "centrelink_crn",
+    "confidence": 1.0,
+    "placeholder": "[REDACTED_CENTRELINK_CRN_001]",
+    "span_end": 327,
+    "span_start": 317,
+    "validator_passed": null
+  },
+  {
+    "category": "bsb_account",
+    "confidence": 1.0,
+    "placeholder": "[REDACTED_BSB_ACCOUNT_002]",
+    "span_end": 353,
+    "span_start": 346,
+    "validator_passed": true
+  },
+  {
+    "category": "driver_licence",
+    "confidence": 1.0,
+    "placeholder": "[REDACTED_DRIVER_LICENCE_001]",
+    "span_end": 371,
+    "span_start": 363,
+    "validator_passed": null
+  },
+  {
+    "category": "patient_id",
+    "confidence": 1.0,
+    "placeholder": "[REDACTED_PATIENT_ID_001]",
+    "span_end": 395,
+    "span_start": 385,
+    "validator_passed": null
+  },
+  {
+    "category": "medical_record_number",
+    "confidence": 1.0,
+    "placeholder": "[REDACTED_MEDICAL_RECORD_NUMBER_001]",
+    "span_end": 431,
+    "span_start": 424,
+    "validator_passed": null
+  },
+  {
+    "category": "healthcare_identifier",
+    "confidence": 1.0,
+    "placeholder": "[REDACTED_HEALTHCARE_IDENTIFIER_001]",
+    "span_end": 456,
+    "span_start": 437,
+    "validator_passed": null
+  }
+]
+```
+
+### Expected Labels
+
+```json
+[
+  {
+    "category": "name",
+    "valid": true,
+    "value": "Zoe Brown"
+  },
+  {
+    "category": "date_of_birth",
+    "valid": true,
+    "value": "23/11/1993"
+  },
+  {
+    "category": "address",
+    "valid": true,
+    "value": "57 Queen Street, Adelaide NSW 2284"
+  },
+  {
+    "category": "email",
+    "valid": true,
+    "value": "zoe.brown1@example.gov.au"
+  },
+  {
+    "category": "phone",
+    "valid": true,
+    "value": "0410872248"
+  },
+  {
+    "category": "tfn",
+    "valid": true,
+    "value": "123 456 782"
+  },
+  {
+    "category": "abn",
+    "valid": true,
+    "value": "53 004 085 616"
+  },
+  {
+    "category": "acn",
+    "valid": true,
+    "value": "004 085 616"
+  },
+  {
+    "category": "medicare",
+    "valid": true,
+    "value": "2123 45670 1"
+  },
+  {
+    "category": "driver_licence",
+    "valid": true,
+    "value": "NSW895667"
+  },
+  {
+    "category": "passport",
+    "valid": true,
+    "value": "N3678638"
+  },
+  {
+    "category": "crn",
+    "valid": true,
+    "value": "849621470A"
+  },
+  {
+    "category": "bsb_account",
+    "valid": true,
+    "value": "532-448"
+  },
+  {
+    "category": "patient_id",
+    "valid": true,
+    "value": "PID-263032"
+  },
+  {
+    "category": "medical_record_number",
+    "valid": true,
+    "value": "MRN 4612365"
+  },
+  {
+    "category": "healthcare_identifier",
+    "valid": true,
+    "value": "8003 6000 0000 0000"
+  }
+]
+```
+
+### Reviewer Findings
+
+False positives:
+
+False negatives:
+
+Notes:
+
+## Sample 3: synthetic-mixed-000002
+
+### Redacted Text
+
+```text
+Patient Jack Smith attended review. Date of birth: 03/07/1952. Residential address is 92 Collins Street, Adelaide NSW 2270. Contact email [REDACTED_EMAIL_001] and mobile [REDACTED_PHONE_001]. TFN [REDACTED_TFN_001]; ABN [REDACTED_ABN_001]; ACN [REDACTED_ACN_001]. Medicare number [REDACTED_MEDICARE_001]; driver licence NSW[REDACTED_BSB_ACCOUNT_001]; passport [REDACTED_PASSPORT_001]; CRN [REDACTED_CENTRELINK_CRN_001]. Bank details BSB [REDACTED_BSB_ACCOUNT_002], account [REDACTED_TFN_002]. Patient ID: [REDACTED_PATIENT_ID_001]; Medical Record Number: MRN [REDACTED_MEDICAL_RECORD_NUMBER_001]; IHI [REDACTED_HEALTHCARE_IDENTIFIER_001].
+```
+
+### Detected PII Table
+
+```json
+[
+  {
+    "category": "email",
+    "confidence": 1.0,
+    "placeholder": "[REDACTED_EMAIL_001]",
+    "span_end": 164,
+    "span_start": 138,
+    "validator_passed": null
+  },
+  {
+    "category": "phone",
+    "confidence": 1.0,
+    "placeholder": "[REDACTED_PHONE_001]",
+    "span_end": 186,
+    "span_start": 176,
+    "validator_passed": null
+  },
+  {
+    "category": "tfn",
+    "confidence": 1.0,
+    "placeholder": "[REDACTED_TFN_001]",
+    "span_end": 203,
+    "span_start": 192,
+    "validator_passed": true
+  },
+  {
+    "category": "abn",
+    "confidence": 1.0,
+    "placeholder": "[REDACTED_ABN_001]",
+    "span_end": 223,
+    "span_start": 209,
+    "validator_passed": true
+  },
+  {
+    "category": "acn",
+    "confidence": 1.0,
+    "placeholder": "[REDACTED_ACN_001]",
+    "span_end": 240,
+    "span_start": 229,
+    "validator_passed": true
+  },
+  {
+    "category": "medicare",
+    "confidence": 1.0,
+    "placeholder": "[REDACTED_MEDICARE_001]",
+    "span_end": 270,
+    "span_start": 258,
+    "validator_passed": true
+  },
+  {
+    "category": "bsb_account",
+    "confidence": 1.0,
+    "placeholder": "[REDACTED_BSB_ACCOUNT_001]",
+    "span_end": 296,
+    "span_start": 290,
+    "validator_passed": true
+  },
+  {
+    "category": "passport",
+    "confidence": 1.0,
+    "placeholder": "[REDACTED_PASSPORT_001]",
+    "span_end": 315,
+    "span_start": 307,
+    "validator_passed": null
+  },
+  {
+    "category": "centrelink_crn",
+    "confidence": 1.0,
+    "placeholder": "[REDACTED_CENTRELINK_CRN_001]",
+    "span_end": 331,
+    "span_start": 321,
+    "validator_passed": null
+  },
+  {
+    "category": "bsb_account",
+    "confidence": 1.0,
+    "placeholder": "[REDACTED_BSB_ACCOUNT_002]",
+    "span_end": 357,
+    "span_start": 350,
+    "validator_passed": true
+  },
+  {
+    "category": "tfn",
+    "confidence": 1.0,
+    "placeholder": "[REDACTED_TFN_002]",
+    "span_end": 375,
+    "span_start": 367,
+    "validator_passed": true
+  },
+  {
+    "category": "patient_id",
+    "confidence": 1.0,
+    "placeholder": "[REDACTED_PATIENT_ID_001]",
+    "span_end": 399,
+    "span_start": 389,
+    "validator_passed": null
+  },
+  {
+    "category": "medical_record_number",
+    "confidence": 1.0,
+    "placeholder": "[REDACTED_MEDICAL_RECORD_NUMBER_001]",
+    "span_end": 435,
+    "span_start": 428,
+    "validator_passed": null
+  },
+  {
+    "category": "healthcare_identifier",
+    "confidence": 1.0,
+    "placeholder": "[REDACTED_HEALTHCARE_IDENTIFIER_001]",
+    "span_end": 460,
+    "span_start": 441,
+    "validator_passed": null
+  }
+]
+```
+
+### Expected Labels
+
+```json
+[
+  {
+    "category": "name",
+    "valid": true,
+    "value": "Jack Smith"
+  },
+  {
+    "category": "date_of_birth",
+    "valid": true,
+    "value": "03/07/1952"
+  },
+  {
+    "category": "address",
+    "valid": true,
+    "value": "92 Collins Street, Adelaide NSW 2270"
+  },
+  {
+    "category": "email",
+    "valid": true,
+    "value": "jack.smith2@example.gov.au"
+  },
+  {
+    "category": "phone",
+    "valid": true,
+    "value": "0415831819"
+  },
+  {
+    "category": "tfn",
+    "valid": true,
+    "value": "123 456 782"
+  },
+  {
+    "category": "abn",
+    "valid": true,
+    "value": "53 004 085 616"
+  },
+  {
+    "category": "acn",
+    "valid": true,
+    "value": "004 085 616"
+  },
+  {
+    "category": "medicare",
+    "valid": true,
+    "value": "2123 45670 1"
+  },
+  {
+    "category": "driver_licence",
+    "valid": true,
+    "value": "NSW865179"
+  },
+  {
+    "category": "passport",
+    "valid": true,
+    "value": "N8707870"
+  },
+  {
+    "category": "crn",
+    "valid": true,
+    "value": "675770529A"
+  },
+  {
+    "category": "bsb_account",
+    "valid": true,
+    "value": "227-487"
+  },
+  {
+    "category": "patient_id",
+    "valid": true,
+    "value": "PID-678856"
+  },
+  {
+    "category": "medical_record_number",
+    "valid": true,
+    "value": "MRN 5918715"
+  },
+  {
+    "category": "healthcare_identifier",
+    "valid": true,
+    "value": "8003 6000 0000 0000"
+  }
+]
+```
+
+### Reviewer Findings
+
+False positives:
+
+False negatives:
+
+Notes:
+
+## Sample 4: synthetic-mixed-000003
+
+### Redacted Text
+
+```text
+Patient Henry Taylor attended review. Date of birth: 19/04/1948. Residential address is 12 George Street, Brisbane NSW 2081. Contact email [REDACTED_EMAIL_001] and mobile [REDACTED_PHONE_001]. TFN [REDACTED_TFN_001]; ABN [REDACTED_ABN_001]; ACN [REDACTED_ACN_001]. Medicare number [REDACTED_MEDICARE_001]; driver licence NSW[REDACTED_BSB_ACCOUNT_001]; passport [REDACTED_PASSPORT_001]; CRN [REDACTED_CENTRELINK_CRN_001]. Bank details BSB [REDACTED_BSB_ACCOUNT_002], account [REDACTED_DRIVER_LICENCE_001]. Patient ID: [REDACTED_PATIENT_ID_001]; Medical Record Number: MRN [REDACTED_MEDICAL_RECORD_NUMBER_001]; IHI [REDACTED_HEALTHCARE_IDENTIFIER_001].
+```
+
+### Detected PII Table
+
+```json
+[
+  {
+    "category": "email",
+    "confidence": 1.0,
+    "placeholder": "[REDACTED_EMAIL_001]",
+    "span_end": 167,
+    "span_start": 139,
+    "validator_passed": null
+  },
+  {
+    "category": "phone",
+    "confidence": 1.0,
+    "placeholder": "[REDACTED_PHONE_001]",
+    "span_end": 189,
+    "span_start": 179,
+    "validator_passed": null
+  },
+  {
+    "category": "tfn",
+    "confidence": 1.0,
+    "placeholder": "[REDACTED_TFN_001]",
+    "span_end": 206,
+    "span_start": 195,
+    "validator_passed": true
+  },
+  {
+    "category": "abn",
+    "confidence": 1.0,
+    "placeholder": "[REDACTED_ABN_001]",
+    "span_end": 226,
+    "span_start": 212,
+    "validator_passed": true
+  },
+  {
+    "category": "acn",
+    "confidence": 1.0,
+    "placeholder": "[REDACTED_ACN_001]",
+    "span_end": 243,
+    "span_start": 232,
+    "validator_passed": true
+  },
+  {
+    "category": "medicare",
+    "confidence": 1.0,
+    "placeholder": "[REDACTED_MEDICARE_001]",
+    "span_end": 273,
+    "span_start": 261,
+    "validator_passed": true
+  },
+  {
+    "category": "bsb_account",
+    "confidence": 1.0,
+    "placeholder": "[REDACTED_BSB_ACCOUNT_001]",
+    "span_end": 299,
+    "span_start": 293,
+    "validator_passed": true
+  },
+  {
+    "category": "passport",
+    "confidence": 1.0,
+    "placeholder": "[REDACTED_PASSPORT_001]",
+    "span_end": 318,
+    "span_start": 310,
+    "validator_passed": null
+  },
+  {
+    "category": "centrelink_crn",
+    "confidence": 1.0,
+    "placeholder": "[REDACTED_CENTRELINK_CRN_001]",
+    "span_end": 334,
+    "span_start": 324,
+    "validator_passed": null
+  },
+  {
+    "category": "bsb_account",
+    "confidence": 1.0,
+    "placeholder": "[REDACTED_BSB_ACCOUNT_002]",
+    "span_end": 360,
+    "span_start": 353,
+    "validator_passed": true
+  },
+  {
+    "category": "driver_licence",
+    "confidence": 1.0,
+    "placeholder": "[REDACTED_DRIVER_LICENCE_001]",
+    "span_end": 378,
+    "span_start": 370,
+    "validator_passed": null
+  },
+  {
+    "category": "patient_id",
+    "confidence": 1.0,
+    "placeholder": "[REDACTED_PATIENT_ID_001]",
+    "span_end": 402,
+    "span_start": 392,
+    "validator_passed": null
+  },
+  {
+    "category": "medical_record_number",
+    "confidence": 1.0,
+    "placeholder": "[REDACTED_MEDICAL_RECORD_NUMBER_001]",
+    "span_end": 438,
+    "span_start": 431,
+    "validator_passed": null
+  },
+  {
+    "category": "healthcare_identifier",
+    "confidence": 1.0,
+    "placeholder": "[REDACTED_HEALTHCARE_IDENTIFIER_001]",
+    "span_end": 463,
+    "span_start": 444,
+    "validator_passed": null
+  }
+]
+```
+
+### Expected Labels
+
+```json
+[
+  {
+    "category": "name",
+    "valid": true,
+    "value": "Henry Taylor"
+  },
+  {
+    "category": "date_of_birth",
+    "valid": true,
+    "value": "19/04/1948"
+  },
+  {
+    "category": "address",
+    "valid": true,
+    "value": "12 George Street, Brisbane NSW 2081"
+  },
+  {
+    "category": "email",
+    "valid": true,
+    "value": "henry.taylor3@example.gov.au"
+  },
+  {
+    "category": "phone",
+    "valid": true,
+    "value": "0441244663"
+  },
+  {
+    "category": "tfn",
+    "valid": true,
+    "value": "123 456 782"
+  },
+  {
+    "category": "abn",
+    "valid": true,
+    "value": "53 004 085 616"
+  },
+  {
+    "category": "acn",
+    "valid": true,
+    "value": "004 085 616"
+  },
+  {
+    "category": "medicare",
+    "valid": true,
+    "value": "2123 45670 1"
+  },
+  {
+    "category": "driver_licence",
+    "valid": true,
+    "value": "NSW205907"
+  },
+  {
+    "category": "passport",
+    "valid": true,
+    "value": "N7377459"
+  },
+  {
+    "category": "crn",
+    "valid": true,
+    "value": "398471886A"
+  },
+  {
+    "category": "bsb_account",
+    "valid": true,
+    "value": "564-750"
+  },
+  {
+    "category": "patient_id",
+    "valid": true,
+    "value": "PID-270555"
+  },
+  {
+    "category": "medical_record_number",
+    "valid": true,
+    "value": "MRN 7210606"
+  },
+  {
+    "category": "healthcare_identifier",
+    "valid": true,
+    "value": "8003 6000 0000 0000"
+  }
+]
+```
+
+### Reviewer Findings
+
+False positives:
+
+False negatives:
+
+Notes:
+
+## Sample 5: synthetic-mixed-000004
+
+### Redacted Text
+
+```text
+Patient Isla Smith attended review. Date of birth: 20/11/1961. Residential address is 137 George Street, Melbourne NSW 2473. Contact email [REDACTED_EMAIL_001] and mobile [REDACTED_PHONE_001]. TFN [REDACTED_TFN_001]; ABN [REDACTED_ABN_001]; ACN [REDACTED_ACN_001]. Medicare number [REDACTED_MEDICARE_001]; driver licence NSW[REDACTED_BSB_ACCOUNT_001]; passport [REDACTED_PASSPORT_001]; CRN [REDACTED_CENTRELINK_CRN_001]. Bank details BSB [REDACTED_BSB_ACCOUNT_002], account [REDACTED_DRIVER_LICENCE_001]. Patient ID: [REDACTED_PATIENT_ID_001]; Medical Record Number: MRN [REDACTED_MEDICAL_RECORD_NUMBER_001]; IHI [REDACTED_HEALTHCARE_IDENTIFIER_001].
+```
+
+### Detected PII Table
+
+```json
+[
+  {
+    "category": "email",
+    "confidence": 1.0,
+    "placeholder": "[REDACTED_EMAIL_001]",
+    "span_end": 165,
+    "span_start": 139,
+    "validator_passed": null
+  },
+  {
+    "category": "phone",
+    "confidence": 1.0,
+    "placeholder": "[REDACTED_PHONE_001]",
+    "span_end": 187,
+    "span_start": 177,
+    "validator_passed": null
+  },
+  {
+    "category": "tfn",
+    "confidence": 1.0,
+    "placeholder": "[REDACTED_TFN_001]",
+    "span_end": 204,
+    "span_start": 193,
+    "validator_passed": true
+  },
+  {
+    "category": "abn",
+    "confidence": 1.0,
+    "placeholder": "[REDACTED_ABN_001]",
+    "span_end": 224,
+    "span_start": 210,
+    "validator_passed": true
+  },
+  {
+    "category": "acn",
+    "confidence": 1.0,
+    "placeholder": "[REDACTED_ACN_001]",
+    "span_end": 241,
+    "span_start": 230,
+    "validator_passed": true
+  },
+  {
+    "category": "medicare",
+    "confidence": 1.0,
+    "placeholder": "[REDACTED_MEDICARE_001]",
+    "span_end": 271,
+    "span_start": 259,
+    "validator_passed": true
+  },
+  {
+    "category": "bsb_account",
+    "confidence": 1.0,
+    "placeholder": "[REDACTED_BSB_ACCOUNT_001]",
+    "span_end": 297,
+    "span_start": 291,
+    "validator_passed": true
+  },
+  {
+    "category": "passport",
+    "confidence": 1.0,
+    "placeholder": "[REDACTED_PASSPORT_001]",
+    "span_end": 316,
+    "span_start": 308,
+    "validator_passed": null
+  },
+  {
+    "category": "centrelink_crn",
+    "confidence": 1.0,
+    "placeholder": "[REDACTED_CENTRELINK_CRN_001]",
+    "span_end": 332,
+    "span_start": 322,
+    "validator_passed": null
+  },
+  {
+    "category": "bsb_account",
+    "confidence": 1.0,
+    "placeholder": "[REDACTED_BSB_ACCOUNT_002]",
+    "span_end": 358,
+    "span_start": 351,
+    "validator_passed": true
+  },
+  {
+    "category": "driver_licence",
+    "confidence": 1.0,
+    "placeholder": "[REDACTED_DRIVER_LICENCE_001]",
+    "span_end": 376,
+    "span_start": 368,
+    "validator_passed": null
+  },
+  {
+    "category": "patient_id",
+    "confidence": 1.0,
+    "placeholder": "[REDACTED_PATIENT_ID_001]",
+    "span_end": 400,
+    "span_start": 390,
+    "validator_passed": null
+  },
+  {
+    "category": "medical_record_number",
+    "confidence": 1.0,
+    "placeholder": "[REDACTED_MEDICAL_RECORD_NUMBER_001]",
+    "span_end": 436,
+    "span_start": 429,
+    "validator_passed": null
+  },
+  {
+    "category": "healthcare_identifier",
+    "confidence": 1.0,
+    "placeholder": "[REDACTED_HEALTHCARE_IDENTIFIER_001]",
+    "span_end": 461,
+    "span_start": 442,
+    "validator_passed": null
+  }
+]
+```
+
+### Expected Labels
+
+```json
+[
+  {
+    "category": "name",
+    "valid": true,
+    "value": "Isla Smith"
+  },
+  {
+    "category": "date_of_birth",
+    "valid": true,
+    "value": "20/11/1961"
+  },
+  {
+    "category": "address",
+    "valid": true,
+    "value": "137 George Street, Melbourne NSW 2473"
+  },
+  {
+    "category": "email",
+    "valid": true,
+    "value": "isla.smith4@example.gov.au"
+  },
+  {
+    "category": "phone",
+    "valid": true,
+    "value": "0460929647"
+  },
+  {
+    "category": "tfn",
+    "valid": true,
+    "value": "123 456 782"
+  },
+  {
+    "category": "abn",
+    "valid": true,
+    "value": "53 004 085 616"
+  },
+  {
+    "category": "acn",
+    "valid": true,
+    "value": "004 085 616"
+  },
+  {
+    "category": "medicare",
+    "valid": true,
+    "value": "2123 45670 1"
+  },
+  {
+    "category": "driver_licence",
+    "valid": true,
+    "value": "NSW383060"
+  },
+  {
+    "category": "passport",
+    "valid": true,
+    "value": "N4684531"
+  },
+  {
+    "category": "crn",
+    "valid": true,
+    "value": "835098955A"
+  },
+  {
+    "category": "bsb_account",
+    "valid": true,
+    "value": "432-963"
+  },
+  {
+    "category": "patient_id",
+    "valid": true,
+    "value": "PID-340174"
+  },
+  {
+    "category": "medical_record_number",
+    "valid": true,
+    "value": "MRN 1538552"
+  },
+  {
+    "category": "healthcare_identifier",
+    "valid": true,
+    "value": "8003 6000 0000 0000"
+  }
+]
+```
+
+### Reviewer Findings
+
+False positives:
+
+False negatives:
+
+Notes:
+

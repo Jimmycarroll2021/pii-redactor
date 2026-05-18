@@ -1,0 +1,71 @@
+# Production stack: llama.cpp server with a Llama-3-8B GGUF model
+# alongside the PII redactor service. Both speak HTTP.
+#
+# Usage:
+#   1. Place a Llama-3-8B-Instruct GGUF in ./models/
+#      e.g. Meta-Llama-3-8B-Instruct.Q4_K_M.gguf (~4.6 GB)
+#      Available from: hf.co/QuantFactory/Meta-Llama-3-8B-Instruct-GGUF
+#   2. cp .env.example .env  and fill in PIIR_API_KEY + PIIR_AUDIT_KEY
+#   3. docker compose up -d
+#   4. Test: curl localhost:8000/health
+#
+# Resource expectations:
+#   - llama-server: ~8GB RAM, faster with GPU passthrough
+#   - pii-redactor: ~200MB RAM, CPU only
+
+services:
+  llama-server:
+    image: ghcr.io/ggerganov/llama.cpp:server
+    container_name: pii-llama-server
+    command: >
+      -m /models/Meta-Llama-3-8B-Instruct.Q4_K_M.gguf
+      --host 0.0.0.0
+      --port 8080
+      --ctx-size 8192
+      --n-gpu-layers 0
+    volumes:
+      - ./models:/models:ro
+    ports:
+      - "8080:8080"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8080/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    restart: unless-stopped
+
+  pii-redactor:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: pii-redactor-api
+    environment:
+      PIIR_BACKEND: llama_cpp
+      PIIR_LLAMA_CPP_URL: http://llama-server:8080
+      PIIR_FAIL_ON_LLM_ERROR: "true"
+      PIIR_REQUIRE_PRODUCTION_SAFETY: "true"
+      PIIR_REQUIRE_API_KEY: "true"
+      PIIR_API_KEY: ${PIIR_API_KEY:?Set PIIR_API_KEY}
+      PIIR_REIDENTIFY_API_KEY: ${PIIR_REIDENTIFY_API_KEY:?Set PIIR_REIDENTIFY_API_KEY}
+      PIIR_AUDIT_KEY: ${PIIR_AUDIT_KEY:?Set PIIR_AUDIT_KEY}
+      PIIR_AUDIT_PATH: /data/audit.jsonl
+      PIIR_AUDIT_ENABLED: "true"
+      PIIR_MAX_TEXT_CHARS: ${PIIR_MAX_TEXT_CHARS:-200000}
+      PIIR_MAX_BATCH_DOCS: ${PIIR_MAX_BATCH_DOCS:-1000}
+      PIIR_MAX_CONCURRENCY: ${PIIR_MAX_CONCURRENCY:-8}
+      PIIR_PLACEHOLDER_STYLE: numbered
+    volumes:
+      - ./data:/data
+    ports:
+      - "8000:8000"
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=5).read()\" || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    depends_on:
+      llama-server:
+        condition: service_healthy
+    restart: unless-stopped
