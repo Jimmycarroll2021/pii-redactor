@@ -3,7 +3,7 @@ requires = ["setuptools>=68.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "pii-redactor"
+name = "pii-redactor-au"
 version = "0.1.2"
 description = "Pre-ingestion PII de-identification for Australian government data, using zero-shot LLM detection with checksum validation."
 readme = "README.md"
@@ -42,8 +42,8 @@ all = [
 dev = ["pytest>=8.0.0", "ruff>=0.4.0"]
 
 [project.urls]
-Homepage = "https://github.com/JimmyBhoy/pii-redactor"
-Issues = "https://github.com/JimmyBhoy/pii-redactor/issues"
+Homepage = "https://github.com/Jimmycarroll2021/pii-redactor"
+Issues = "https://github.com/Jimmycarroll2021/pii-redactor/issues"
 
 [project.scripts]
 pii-redactor = "pii_redactor.cli:main"

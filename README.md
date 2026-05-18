@@ -68,8 +68,14 @@ Hardware: AMD Ryzen 7 7840HS, CPU-only inference. Mean latency 13.8 s/doc (Grete
 ### 1. Python library (recommended for in-process pipelines)
 
 ```bash
+# From PyPI
+pip install pii-redactor-au
+
+# Or editable from source
 pip install -e .
 ```
+
+The PyPI **distribution name** is `pii-redactor-au` (the unqualified `pii-redactor` is owned by another project). The **import name remains `pii_redactor`** — no code change for consumers.
 
 ```python
 from pii_redactor import build_pipeline

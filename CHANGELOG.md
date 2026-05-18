@@ -2,6 +2,12 @@
 
 ## [0.1.2] — 2026-05-18
 
+### Distribution name change
+- PyPI distribution renamed from `pii-redactor` to **`pii-redactor-au`** (the unqualified name is owned by another project on PyPI)
+- Import name remains `pii_redactor` — no consumer code change
+- Install: `pip install pii-redactor-au`
+- Live at: https://pypi.org/project/pii-redactor-au/0.1.2/
+
 ### Added
 - Synthetic medical PII fixture (50 docs, 345 labels, 15 AU-identifier docs) — `scale-tests/fixtures/synthetic-medical-50/`
 - Deterministic fixture generator — `scale-tests/generate_synthetic_medical.py`
