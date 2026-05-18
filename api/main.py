@@ -38,7 +38,7 @@ from typing import Optional
 from fastapi import Depends, FastAPI, Header, HTTPException, status
 from pydantic import BaseModel, Field
 
-from pii_redactor import Config, build_pipeline
+from pii_redactor import Config, __version__, build_pipeline
 from pii_redactor.detector import PIIExtractionError
 from pii_redactor.pipeline import Pipeline
 
@@ -46,7 +46,7 @@ logger = logging.getLogger(__name__)
 
 app = FastAPI(
     title="PII Redactor",
-    version="0.1.1",
+    version=__version__,
     description=(
         "Pre-ingestion PII de-identification using zero-shot LLM detection "
         "with Australian government identifier checksum validation. "
@@ -204,7 +204,7 @@ def info() -> dict:
     max_concurrency = int(os.environ.get("PIIR_MAX_CONCURRENCY", "8"))
     cfg = Config.from_env()
     return {
-        "version": "0.1.1",
+        "version": __version__,
         "model_used": pipeline.model_name,
         "backend": cfg.backend,
         "max_concurrency": max_concurrency,

@@ -183,7 +183,7 @@ This is not a substitute for a legal review. It's infrastructure that makes APP-
 pytest tests/ -v
 ```
 
-Current state: 38 tests, all passing. Validators exercised against published test values from ATO (TFN, ABN), ASIC (ACN), and synthetically valid Medicare numbers. Pipeline tests use the `MockClient` backend (regex-only) so they run offline without an LLM. Regression tests cover all three bugs fixed in v0.1.1 (phone format, BSB false positives, phone-in-ABN).
+Current state: 58 tests, all passing. Validators exercised against published test values from ATO (TFN, ABN), ASIC (ACN), and synthetically valid Medicare numbers. Pipeline tests use the `MockClient` backend (regex-only) so they run offline without an LLM. Regression tests cover all bugs fixed in v0.1.1 and v0.1.2 (phone format, BSB false positives, phone-in-ABN with boundary-guarded alternations).
 
 ## Architecture
 
