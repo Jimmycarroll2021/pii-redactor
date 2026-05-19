@@ -971,3 +971,92 @@ def test_hybrid_detector_records_ollama_backend_name(monkeypatch):
     stats = detector.gate_stats()
     assert stats["llama_backend"] == "ollama"
     assert stats["ollama_model"] == "llama3.1:8b"
+
+
+# --- v0.4.0: FinetunedOpenAIBackend + llama-disabled default + fallback ------
+
+
+def test_finetuned_backend_loads_with_mock_adapter(tmp_path, monkeypatch):
+    """FinetunedOpenAIBackend resolves adapter_path from env + arg.
+
+    We don't actually instantiate the heavy model (requires GPU); instead
+    we verify the class constructs and exposes the right attributes.
+    """
+    from pii_redactor.hybrid.finetuned_backend import FinetunedOpenAIBackend
+
+    adapter_dir = tmp_path / "adapter"
+    adapter_dir.mkdir()
+    monkeypatch.setenv("PIIR_LORA_ADAPTER", str(adapter_dir))
+    backend = FinetunedOpenAIBackend()
+    assert backend.adapter_path == str(adapter_dir)
+    assert backend.backend_name == "transformers_au_finetuned"
+    assert backend.adapter_id == adapter_dir.name
+    # Constructor-arg override beats env
+    backend2 = FinetunedOpenAIBackend(adapter_path=str(tmp_path / "other"))
+    assert backend2.adapter_path == str(tmp_path / "other")
+
+
+def test_finetuned_backend_predicts_same_schema_as_openai():
+    """FinetunedOpenAIBackend inherits the (cat,start,end,value[,score]) span schema.
+
+    Verified at the class API surface (not via live inference).
+    """
+    from pii_redactor.hybrid.finetuned_backend import FinetunedOpenAIBackend
+    from pii_redactor.hybrid.openai_backend import OpenAIPrivacyFilter
+
+    assert issubclass(FinetunedOpenAIBackend, OpenAIPrivacyFilter)
+    # Same methods exposed
+    assert hasattr(FinetunedOpenAIBackend, "predict")
+    assert hasattr(FinetunedOpenAIBackend, "predict_with_scores")
+    assert hasattr(FinetunedOpenAIBackend, "warmup")
+
+
+def test_llama_disabled_short_circuits_health_check(monkeypatch):
+    """PIIR_LLAMA_BACKEND=disabled (the v0.4.0 default) skips vLLM/Ollama probes."""
+    from pii_redactor.hybrid.vllm_pass import select_llama_backend
+
+    monkeypatch.setenv("PIIR_LLAMA_BACKEND", "disabled")
+    monkeypatch.setenv("PIIR_LLAMA_ENABLED", "true")
+    name, inst = select_llama_backend()
+    assert name == "disabled"
+    assert inst is None
+
+
+def test_select_llama_backend_default_is_disabled_in_v040(monkeypatch):
+    """v0.4.0 changed the default from 'auto' to 'disabled'.
+
+    Verifies select_llama_backend() returns ('disabled', None) when neither
+    arg nor env var is set — guarantees a clean upgrade for users with no
+    llama endpoint reachable.
+    """
+    from pii_redactor.hybrid.vllm_pass import select_llama_backend
+
+    monkeypatch.delenv("PIIR_LLAMA_BACKEND", raising=False)
+    monkeypatch.setenv("PIIR_LLAMA_ENABLED", "true")
+    name, inst = select_llama_backend()
+    assert name == "disabled"
+    assert inst is None
+
+
+def test_hybrid_detector_llama_disabled_short_circuits(monkeypatch):
+    """When PIIR_LLAMA_BACKEND=disabled the HybridDetector never reaches llama.
+
+    Asserts the detector still works (the openai-only fast path) and reports
+    llama_backend=disabled in gate_stats — verifies the v0.4.0 default path.
+    """
+    monkeypatch.setenv("PIIR_LLAMA_BACKEND", "disabled")
+    detector = HybridDetector(
+        openai_backend=FakeOpenAIBackend(canned=[("private_person", 0, 4, "Jim")]),
+    )
+    spans = detector.detect("Jim is at home")
+    assert any(s.category == PIICategory.NAME for s in spans)
+    stats = detector.gate_stats()
+    assert stats["llama_backend"] == "disabled"
+
+
+def test_config_default_lora_adapter_path():
+    """Config.from_env should default lora_adapter_path to /mnt/ai/adapters/redact-au-1b/best."""
+    from pii_redactor.config import Config
+
+    cfg = Config.from_env()
+    assert cfg.lora_adapter_path == "/mnt/ai/adapters/redact-au-1b/best"
