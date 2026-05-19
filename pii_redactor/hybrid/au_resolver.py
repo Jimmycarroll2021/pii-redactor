@@ -132,20 +132,60 @@ _LABEL_PRIORS: list[tuple[re.Pattern[str], PIICategory]] = [
 ]
 
 
-def _label_prior(text: str, start: int, end: int, window: int = 30) -> PIICategory | None:
-    """Look at the ~30 chars immediately before the span for a label like 'TFN:'.
+# MRN-shaped digit run that lives downstream of an MRN/URN-style label.
+# Accepts optional single leading letter (e.g. "A123456") + 4-10 digits.
+_MRN_SHAPE_RE = re.compile(r"^[A-Z]?\d{4,10}$", re.IGNORECASE)
+
+# When the label uses these specific MRN/URN keywords, the `-` and `: `
+# between the label and the digit run is part of the binding, not a break.
+_MRN_LABEL_KEYWORDS_RE = re.compile(
+    r"\b(?:mrn|medical\s+record\s+number|hospital\s+ur(?:n)?|urn)\b",
+    re.IGNORECASE,
+)
+
+
+def _label_prior(text: str, start: int, end: int, window: int = 40) -> PIICategory | None:
+    """Look at the ~40 chars immediately before the span for a label like 'TFN:'.
 
     We require the label to be the *nearest* one to the value — comma /
-    semicolon / newline characters between the label and the value break
-    the binding so we don't, e.g., bind a TFN label to a subsequent ABN.
+    semicolon / newline / period-space characters between the label and the
+    value break the binding so we don't, e.g., bind a TFN label to a
+    subsequent ABN.
+
+    Special MRN handling (Phase 2.x widening): when the candidate value is
+    MRN-shaped (digit run, optional single leading letter) AND the chars
+    sitting between the label and the value include ``-`` or ``: ``, that
+    separator is treated as PART of the binding. This recovers the
+    substantial MRN-recall loss observed when OpenAI's NER returns just
+    the digits while the ``MRN-`` label sits immediately to the left.
+    The widening applies only when the label keyword itself is MRN-shaped
+    (mrn / medical record number / hospital urn) — TFN / ABN / Medicare /
+    BSB bindings are unaffected.
     """
     left = max(0, start - window)
     snippet = text[left:start]
-    # If there's a hard separator between the label and the value, drop it.
-    for separator in ("\n", ";", ",", ". "):
+    span_value = text[start:end].strip()
+    value_is_mrn_shaped = bool(_MRN_SHAPE_RE.match(span_value))
+
+    # Legacy behaviour: cut on the standard hard separators (newline / `;` /
+    # `,` / `. `). We intentionally do NOT add `:` / `-` as hard separators,
+    # because labels routinely use `Label: value` and `MRN-value` patterns —
+    # cutting on those would discard the label and lose the binding.
+    base_separators = ("\n", ";", ",", ". ")
+    for separator in base_separators:
         sep_idx = snippet.rfind(separator)
         if sep_idx != -1:
             snippet = snippet[sep_idx + len(separator):]
+
+    # Phase 2.x widening: when the value is MRN-shaped AND the snippet
+    # contains an MRN keyword, force MEDICAL_RECORD_NUMBER even if a
+    # different label appears closer — because the snippet up to the MRN
+    # token already passed the hard-separator cut, the binding is intact.
+    # This is a no-op for non-MRN-shaped values, so TFN/ABN/Medicare
+    # bindings remain unchanged.
+    if value_is_mrn_shaped and _MRN_LABEL_KEYWORDS_RE.search(snippet):
+        return PIICategory.MEDICAL_RECORD_NUMBER
+
     for pattern, category in _LABEL_PRIORS:
         if pattern.search(snippet):
             return category

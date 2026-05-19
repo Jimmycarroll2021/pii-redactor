@@ -71,6 +71,50 @@ def test_resolve_one_label_prior_overrides_checksum():
     assert cat == PIICategory.MEDICAL_RECORD_NUMBER
 
 
+def test_resolve_one_mrn_label_prior_across_dash():
+    """Phase 2.x widening: MRN-A123456 — label binding survives a `-`."""
+    text = "Patient MRN-A123456 admitted yesterday."
+    start = text.index("A123456")
+    cat, _ = resolve_one(
+        "A123456",
+        source_text=text,
+        span_start=start,
+        span_end=start + len("A123456"),
+        openai_category="account_number",
+    )
+    assert cat == PIICategory.MEDICAL_RECORD_NUMBER
+
+
+def test_resolve_one_mrn_label_prior_across_colon_space():
+    """Phase 2.x widening: 'MRN: 123456' — label binding survives ': '."""
+    text = "Medical record MRN: 686040. Admitting clinician."
+    start = text.index("686040")
+    cat, _ = resolve_one(
+        "686040",
+        source_text=text,
+        span_start=start,
+        span_end=start + 6,
+        openai_category="account_number",
+    )
+    assert cat == PIICategory.MEDICAL_RECORD_NUMBER
+
+
+def test_resolve_one_non_mrn_digit_run_does_not_steal_mrn_label():
+    """A 4-digit-run with a TFN label nearby still binds to TFN, not MRN.
+    The MRN widening must not corrupt other label bindings.
+    """
+    text = "Customer TFN: 999999999. (no MRN context)."
+    start = text.index("999999999")
+    cat, _ = resolve_one(
+        "999999999",
+        source_text=text,
+        span_start=start,
+        span_end=start + 9,
+        openai_category="account_number",
+    )
+    assert cat == PIICategory.TFN
+
+
 def test_resolve_one_label_prior_tfn_with_bad_checksum():
     # "TFN: 999999999" — label says TFN, checksum fails. We keep TFN
     # category but flag validator_passed=False so the policy layer can
