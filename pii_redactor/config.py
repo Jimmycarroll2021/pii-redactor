@@ -17,7 +17,7 @@ class Config:
     """Runtime configuration."""
 
     # LLM backend selection
-    backend: str = "mock"  # "llama_cpp" | "hf" | "ollama" | "mock"
+    backend: str = "mock"  # "llama_cpp" | "hf" | "ollama" | "mock" | "transformers_au"
     policy_profile: str = "kg_rag_default"
 
     # llama.cpp server

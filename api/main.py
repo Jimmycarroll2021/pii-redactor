@@ -195,7 +195,30 @@ class ReidentifyRequest(BaseModel):
 
 @app.get("/health")
 def health() -> dict:
-    return {"status": "ok"}
+    """Liveness probe.
+
+    Includes GPU + backend identification when the hybrid (transformers_au)
+    backend is configured so orchestrators can confirm the right pipeline
+    is wired in.
+    """
+    backend = os.environ.get("PIIR_BACKEND", "mock")
+    payload: dict = {"status": "ok", "backend": backend}
+    if backend == "transformers_au":
+        # Best-effort GPU label. Don't require torch at import time so the
+        # endpoint stays cheap and never fails over a missing dep.
+        gpu_name = os.environ.get("REDACT_AU_GPU_NAME")
+        if not gpu_name:
+            try:
+                import torch  # noqa: PLC0415
+
+                if torch.cuda.is_available():
+                    gpu_name = torch.cuda.get_device_name(0)
+                else:
+                    gpu_name = "cpu"
+            except Exception:  # noqa: BLE001
+                gpu_name = "unknown"
+        payload["gpu"] = gpu_name
+    return payload
 
 
 @app.get("/info")

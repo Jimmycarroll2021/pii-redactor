@@ -109,6 +109,13 @@ def build_llm_client(config: Config) -> LLMClient:
         )
     if config.backend == "mock":
         return MockClient()
+    if config.backend == "transformers_au":
+        # The hybrid backend doesn't use the LLMClient protocol; it owns its
+        # own OpenAIPrivacyFilter. build_pipeline() short-circuits before
+        # this is called for transformers_au, but if a caller invokes
+        # build_llm_client directly we return a Mock so existing tooling
+        # that probes for `.name` keeps working.
+        return MockClient()
     raise ValueError(f"Unknown backend: {config.backend}")
 
 
@@ -116,8 +123,20 @@ def build_pipeline(
     config: Optional[Config] = None,
     use_regex_prepass: bool = True,
 ) -> Pipeline:
-    """Construct a pipeline from config (or env)."""
+    """Construct a pipeline from config (or env).
+
+    The `transformers_au` backend dispatches to the hybrid OpenAI + AU
+    validator pipeline (see `pii_redactor.hybrid`). All other backends
+    follow the original LLM-detector flow.
+    """
     cfg = config or Config.from_env()
+    if cfg.backend == "transformers_au":
+        # Local import — avoids loading transformers when the hybrid
+        # backend isn't selected.
+        from .hybrid import build_hybrid_pipeline
+
+        return build_hybrid_pipeline(cfg)
+
     llm = build_llm_client(cfg)
     use_grammar = cfg.backend == "llama_cpp"
     detector = PIIDetector(

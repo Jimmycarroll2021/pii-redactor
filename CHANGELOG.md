@@ -1,5 +1,30 @@
 # Changelog
 
+## [0.2.0] — 2026-05-19
+
+### Added — hybrid transformers + AU validator backend
+- New `pii_redactor.hybrid` module — orchestrates `openai/privacy-filter` (Apache 2.0 token classification, ~50M active params, ~110 ms/doc on RTX 4090) as a fast first-pass NER, then routes generic `account_number` / `secret` spans through the existing AU validators (TFN, ABN, ACN, Medicare, BSB checksums) + a structural matcher (IHI, MRN, Passport, DL, CRN) + label-context priors to assign precise AU categories. Drop-in replacement for the LLM-backed `PIIDetector`.
+- `PIIR_BACKEND=transformers_au` env-selectable backend (existing `mock` / `ollama` / `llama_cpp` / `hf` paths unchanged).
+- `pii_redactor.hybrid.openai_backend.OpenAIPrivacyFilter` — thin wrapper around the HF transformers pipeline with lazy GPU load, warmup, and char-offset span normalisation.
+- `pii_redactor.hybrid.au_resolver` — converts OpenAI's generic categories into AU-specific labels using checksum-then-structural-then-label-prior resolution.
+- `pii_redactor.hybrid.regex_supplement` — runs the existing regex_first_pass over text to catch usernames + AU phone/address fragments OpenAI misses, with category-override rules where regex is more specific (e.g. username vs name).
+- `pii_redactor.hybrid.pipeline.HybridDetector` + `build_hybrid_pipeline()` — wire the hybrid detector into the existing `Pipeline` (audit + redactor unchanged).
+- New optional dependency group: `pip install "pii-redactor-au[hybrid]"` (pulls `torch>=2.1`, `transformers>=4.40`).
+- 20 new unit tests under `tests/test_hybrid.py` (78 total passing).
+
+### Added — RTX 4090 FastAPI deployment
+- `redact-au-hybrid` Docker image — CUDA 12.8 + Python 3.12 + torch 2.12 + transformers 5.x, runs the `/redact`, `/redact/batch`, `/reidentify`, `/health`, `/info`, `/metrics` endpoints with the hybrid backend GPU-warm at startup.
+- `/health` returns `{"status":"ok","backend":"transformers_au","gpu":"RTX 4090"}` when the hybrid backend is active.
+- Deployed at `/mnt/ai/services/redact-au-hybrid/` on the RTX 4090, accessible at `http://rtx-ts:8000`.
+
+### Measured (RTX 4090 / Gretel-100 + Medical-50)
+- Throughput: **8.97 docs/sec Gretel, 7.01 docs/sec Medical** — at parity with raw `openai/privacy-filter` (validator overhead is microseconds). **140-143× the v0.1.2 CPU baseline** (0.064 / 0.049 docs/sec).
+- Sensitivity: **91.6% Gretel, 90.1% Medical** (vs 99.6% / 100% on v0.1.2 baseline). Below the 99.4% target — see `benchmarks/hybrid-vs-baseline.md` for the per-category breakdown and the actionable closing path.
+- Zero leaks on Medical-50; 7 leaks on Gretel-100 (down from baseline's 1; concentrated in `generic_id` and AU phones that OpenAI fragments).
+
+### Compatibility
+- v0.1.2 backends (`mock` / `ollama` / `llama_cpp` / `hf`) untouched. All 58 existing tests still pass.
+
 ## [0.1.2] — 2026-05-18
 
 ### Distribution name change
