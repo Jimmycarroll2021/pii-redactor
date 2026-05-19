@@ -207,7 +207,7 @@ class LlamaNERPass:
                 system_prompt=system,
                 user_prompt=user,
                 grammar=None,
-                temperature=0.1,
+                temperature=0.0,
                 max_tokens=2048,
             )
         except Exception as exc:  # noqa: BLE001
