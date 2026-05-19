@@ -125,6 +125,8 @@ class LlamaNERPass:
         timeout_s: float | None = None,
         enabled: bool | None = None,
         max_chars: int | None = None,
+        num_ctx: int | None = None,
+        num_gpu: int | None = None,
     ):
         self.base_url = base_url or os.environ.get(
             "PIIR_LLAMA_BASE_URL", self.DEFAULT_BASE_URL
@@ -141,6 +143,15 @@ class LlamaNERPass:
         self.max_chars = max_chars if max_chars is not None else _env_int(
             "PIIR_LLAMA_MAX_CHARS", 8000
         )
+        # KV-cache budget. llama3.1's native 131k context inflates KV to
+        # 31 GB on GPU — set num_ctx to a tight window so the model + cache
+        # stay 100% resident on the 4090's 24 GB.
+        self.num_ctx = num_ctx if num_ctx is not None else _env_int(
+            "PIIR_LLAMA_NUM_CTX", 4096
+        )
+        self.num_gpu = num_gpu if num_gpu is not None else _env_int(
+            "PIIR_LLAMA_NUM_GPU", 999  # -> fully offload
+        )
         self._client: OllamaClient | None = None
         self._loaded = False
 
@@ -155,6 +166,10 @@ class LlamaNERPass:
             base_url=self.base_url,
             model=self.model,
             timeout=self.timeout_s,
+            extra_options={
+                "num_ctx": self.num_ctx,
+                "num_gpu": self.num_gpu,
+            },
         )
 
     def warmup(self) -> None:

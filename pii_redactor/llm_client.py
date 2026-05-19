@@ -180,6 +180,12 @@ class OllamaClient:
     Hits /api/chat (OpenAI-compatible format). No grammar enforcement —
     Ollama does not support GBNF. Uses connection pooling and
     exponential-backoff retry.
+
+    ``extra_options`` is merged into Ollama's per-request ``options`` block,
+    so callers can pin ``num_ctx`` / ``num_gpu`` / ``num_thread`` etc. The
+    default 131k-context for llama3.1 explodes KV cache to 31 GB; setting
+    ``num_ctx`` to a sane window (e.g. 4096) keeps the model fully resident
+    on a 24 GB GPU and roughly 4× the throughput.
     """
 
     def __init__(
@@ -188,11 +194,13 @@ class OllamaClient:
         model: str = "llama3",
         timeout: float = 120.0,
         retries: int = 3,
+        extra_options: Optional[dict[str, Any]] = None,
     ):
         self.base_url = base_url.rstrip("/")
         self.name = model
         self.timeout = timeout
         self.retries = retries
+        self.extra_options = dict(extra_options) if extra_options else {}
 
     def complete(
         self,
@@ -203,6 +211,8 @@ class OllamaClient:
         max_tokens: int = 2048,
     ) -> str:
         # grammar is silently ignored; Ollama does not support GBNF.
+        opts: dict[str, Any] = {"temperature": temperature, "num_predict": max_tokens}
+        opts.update(self.extra_options)
         payload: dict[str, Any] = {
             "model": self.name,
             "messages": [
@@ -211,7 +221,7 @@ class OllamaClient:
             ],
             "stream": False,
             "format": "json",
-            "options": {"temperature": temperature, "num_predict": max_tokens},
+            "options": opts,
         }
         try:
             resp = _post_with_retry(
@@ -229,7 +239,7 @@ class OllamaClient:
             "prompt": user_prompt,
             "stream": False,
             "format": "json",
-            "options": {"temperature": temperature, "num_predict": max_tokens},
+            "options": opts,
         }
         resp = _post_with_retry(
             f"{self.base_url}/api/generate",

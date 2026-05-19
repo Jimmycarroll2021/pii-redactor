@@ -205,7 +205,10 @@ class PIIDetector:
                 continue
             # Normalise enum repr: "PIICategory.NAME" -> "name"
             if "." in cat_str:
-                cat_str = cat_str.split(".")[-1].lower()
+                cat_str = cat_str.split(".")[-1]
+            # Some models capitalise the category. Always lowercase for the
+            # PIICategory enum lookup so {"Name": "..."} = {"name": "..."}.
+            cat_str = cat_str.strip().lower().replace(" ", "_").replace("-", "_")
             try:
                 cat = PIICategory(cat_str)
             except ValueError:
