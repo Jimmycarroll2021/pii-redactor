@@ -268,6 +268,50 @@ def test_hybrid_detector_handles_empty_text():
     assert detector.detect("") == []
 
 
+def test_openai_backend_honours_score_threshold(monkeypatch):
+    """Phase 2.x: PIIR_HF_SCORE_THRESHOLD env should be honoured by predict()."""
+    from pii_redactor.hybrid.openai_backend import OpenAIPrivacyFilter
+
+    # Don't actually load the model — substitute a fake pipeline.
+    class _FakePipe:
+        def __call__(self, text):  # noqa: ARG002
+            return [
+                {"entity_group": "private_person", "score": 0.95,
+                 "start": 0, "end": 4, "word": "Jane"},
+                {"entity_group": "private_address", "score": 0.05,
+                 "start": 5, "end": 9, "word": "Doe."},
+            ]
+
+    monkeypatch.setenv("PIIR_HF_SCORE_THRESHOLD", "0.5")
+    backend = OpenAIPrivacyFilter()
+    backend._pipeline = _FakePipe()  # bypass _ensure_loaded()
+    backend._device = -1
+    out = backend.predict("Jane Doe.")
+    assert len(out) == 1
+    assert out[0][0] == "private_person"
+
+
+def test_openai_backend_default_threshold_keeps_all(monkeypatch):
+    """Default score_threshold=0.0 → no spans dropped."""
+    from pii_redactor.hybrid.openai_backend import OpenAIPrivacyFilter
+
+    class _FakePipe:
+        def __call__(self, text):  # noqa: ARG002
+            return [
+                {"entity_group": "private_person", "score": 0.95,
+                 "start": 0, "end": 4, "word": "Jane"},
+                {"entity_group": "private_address", "score": 0.05,
+                 "start": 5, "end": 9, "word": "Doe."},
+            ]
+
+    monkeypatch.delenv("PIIR_HF_SCORE_THRESHOLD", raising=False)
+    backend = OpenAIPrivacyFilter()
+    backend._pipeline = _FakePipe()
+    backend._device = -1
+    out = backend.predict("Jane Doe.")
+    assert len(out) == 2
+
+
 def test_build_pipeline_transformers_au_dispatches_to_hybrid(monkeypatch):
     """build_pipeline routes PIIR_BACKEND=transformers_au to the hybrid path."""
     import pii_redactor.hybrid as hybrid_mod

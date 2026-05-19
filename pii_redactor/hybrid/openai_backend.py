@@ -68,6 +68,11 @@ class OpenAIPrivacyFilter:
     """
 
     DEFAULT_MODEL_ID = "openai/privacy-filter"
+    # Default Viterbi/score floor. The model is calibrated conservatively;
+    # production-recall use needs to lower this to widen the span set the
+    # AU resolver + regex layer can dedupe / re-categorise downstream.
+    # 0.0 = accept every span the aggregator emits.
+    DEFAULT_SCORE_THRESHOLD = 0.0
 
     def __init__(
         self,
@@ -75,11 +80,20 @@ class OpenAIPrivacyFilter:
         device: int | None = None,
         aggregation_strategy: str = "simple",
         torch_dtype: str | None = None,
+        score_threshold: float | None = None,
     ):
         self.model_id = model_id or os.environ.get(
             "PIIR_HF_MODEL", self.DEFAULT_MODEL_ID
         )
-        self.aggregation_strategy = aggregation_strategy
+        self.aggregation_strategy = os.environ.get(
+            "PIIR_HF_AGGREGATION", aggregation_strategy
+        )
+        if score_threshold is None:
+            env_thr = os.environ.get("PIIR_HF_SCORE_THRESHOLD")
+            score_threshold = (
+                float(env_thr) if env_thr is not None else self.DEFAULT_SCORE_THRESHOLD
+            )
+        self.score_threshold = float(score_threshold)
         # device=None -> auto-pick. 0 = first CUDA, -1 = CPU.
         self._requested_device = device
         self._requested_dtype = torch_dtype
@@ -114,10 +128,12 @@ class OpenAIPrivacyFilter:
         if self._requested_dtype:
             kwargs["torch_dtype"] = self._requested_dtype
         logger.info(
-            "Loading %s on device=%s dtype=%s",
+            "Loading %s on device=%s dtype=%s aggregation=%s score_threshold=%.3f",
             self.model_id,
             device,
             self._requested_dtype or "auto",
+            self.aggregation_strategy,
+            self.score_threshold,
         )
         self._pipeline = hf_pipeline(**kwargs)
         self._device = device
@@ -176,6 +192,15 @@ class OpenAIPrivacyFilter:
 
         out: list[tuple[str, int, int, str]] = []
         for p in preds:
+            # Apply the configured score floor. The aggregator already
+            # returns a `score` field on each entity in [0, 1]; spans below
+            # the floor are dropped so the AU resolver doesn't see noise.
+            score = p.get("score", 1.0)
+            try:
+                if float(score) < self.score_threshold:
+                    continue
+            except (TypeError, ValueError):
+                pass
             cat = p.get("entity_group") or p.get("entity")
             if not cat:
                 continue
