@@ -1,5 +1,44 @@
 # Changelog
 
+## [0.4.0] — 2026-05-19
+
+### BREAKING — default llama backend disabled
+- `PIIR_LLAMA_BACKEND` default changed from `auto` → `disabled`. The Llama
+  narrative-pass is no longer in the default hot path. Users wanting the
+  prior v0.3.x behaviour should set `PIIR_LLAMA_BACKEND=vllm` or `=ollama`
+  explicitly.
+- Equivalent: `PIIR_LLAMA_ENABLED=false` still disables the pass entirely.
+
+### Added — LoRA-finetuned `openai/privacy-filter` (`redact-au-1b`)
+- `pii_redactor.hybrid.finetuned_backend.FinetunedOpenAIBackend` — loads
+  base `openai/privacy-filter` (Apache 2.0) + a LoRA adapter via PEFT and
+  merges them for zero-overhead inference. Drop-in subclass of
+  `OpenAIPrivacyFilter` — same span schema, same `predict_with_scores()`.
+- New env knob `PIIR_LORA_ADAPTER` — path to LoRA adapter directory.
+  Default: `/mnt/ai/adapters/redact-au-1b/best` (the autonomous loop's
+  top-1 adapter on RTX 4090).
+- New backend value `PIIR_BACKEND=transformers_au_finetuned`.
+- Fallback chain: `transformers_au_finetuned → transformers_au → ollama`
+  (`PIIR_LLAMA_BACKEND` controls the last hop; default = disabled).
+- HF Hub model card published at `JimmyBhoy/redact-au-1b` (Apache 2.0).
+
+### Added — config + library
+- `Config.lora_adapter_path` (read from `PIIR_LORA_ADAPTER`).
+- `peft>=0.13.0` added to `[hybrid]` and `[all]` optional dependency
+  groups.
+- 6 new tests covering FinetunedOpenAIBackend, the disabled short-circuit,
+  fallback chain, and the new config knob (126 tests total).
+
+### Performance (RTX 4090, v0.4.0, llama=disabled default)
+- Held-out sensitivity: **97.41%** overall, **100.00%** AU-synthetic,
+  **99.57%** medical-aug, **92.00%** Gretel held-out.
+- Composite score (sensitivity − 0.001·leaks − forgetting-penalty): **0.927**.
+- General-PII regression (ai4privacy held-out, vs baseline 0.672):
+  **0.882** — no forgetting penalty.
+- Container `redact-au-hybrid:0.4.0` healthy on rtx-ts:8000 reporting
+  `backend=transformers_au_finetuned`, `adapter=redact-au-1b`.
+- Frozen-bench measurements added in `benchmarks/v0.4-vs-baseline.md`.
+
 ## [0.2.0] — 2026-05-19
 
 ### Added — hybrid transformers + AU validator backend
