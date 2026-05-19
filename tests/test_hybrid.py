@@ -472,16 +472,33 @@ def test_gate_confidence_skips_short_structured_doc():
     assert "skip" in reason
 
 
-def test_gate_confidence_invokes_on_low_openai_score():
-    """A hedging openai head (score < min_score) flips the gate to invoke."""
+def test_gate_confidence_invokes_on_multi_low_openai_scores():
+    """Two or more hedging openai spans flip the gate to invoke.
+
+    A single low-confidence span is normal noise; two or more is a
+    systematic signal that the calibrated head is under-recalling and
+    the prompt-driven llama pass should run.
+    """
     from pii_redactor.hybrid import should_invoke_llama
 
     invoke, reason = should_invoke_llama(
-        "A short doc", openai_scores=[0.7], mode="confidence",
-        min_score=0.85, min_tokens=50,
+        "A short doc", openai_scores=[0.7, 0.5, 0.99], mode="confidence",
+        min_score=0.85, min_tokens=200,
     )
     assert invoke is True
-    assert "openai_min_score" in reason
+    assert "openai_low_conf" in reason
+
+
+def test_gate_confidence_skips_single_low_score_span():
+    """One low-confidence span alone does NOT invoke — that's noise."""
+    from pii_redactor.hybrid import should_invoke_llama
+
+    invoke, reason = should_invoke_llama(
+        "A short doc with one span", openai_scores=[0.7, 0.99, 0.99],
+        mode="confidence", min_score=0.85, min_tokens=200,
+    )
+    assert invoke is False
+    assert "skip" in reason
 
 
 def test_gate_confidence_invokes_on_narrative_cue():
@@ -754,3 +771,203 @@ def test_build_pipeline_transformers_au_dispatches_to_hybrid(monkeypatch):
     result = pipeline_mod.build_pipeline(cfg)
     assert called.get("yes") is True
     assert result == "PIPELINE_STUB"
+
+
+# --- Phase 2.z vLLM narrative backend ---------------------------------------
+
+
+def test_vllm_pass_disabled_returns_empty(monkeypatch):
+    """PIIR_LLAMA_ENABLED=false → no calls, empty list."""
+    from pii_redactor.hybrid.vllm_pass import VLLMNERPass
+
+    monkeypatch.setenv("PIIR_LLAMA_ENABLED", "false")
+    pass_ = VLLMNERPass()
+    assert pass_.predict("Some text with Daniel Lee.") == []
+
+
+def test_vllm_pass_skips_oversized_doc(monkeypatch):
+    """Documents larger than PIIR_LLAMA_MAX_CHARS are skipped (latency budget)."""
+    from pii_redactor.hybrid.vllm_pass import VLLMNERPass
+
+    monkeypatch.setenv("PIIR_LLAMA_ENABLED", "true")
+    pass_ = VLLMNERPass(max_chars=100)
+    huge = "x" * 5000
+    assert pass_.predict(huge) == []
+
+
+def test_vllm_pass_soft_fails_on_unreachable(monkeypatch):
+    """An unreachable vLLM endpoint must not surface — return [] instead."""
+    from pii_redactor.hybrid.vllm_pass import VLLMNERPass
+
+    monkeypatch.delenv("PIIR_LLAMA_ENABLED", raising=False)
+    pass_ = VLLMNERPass(base_url="http://127.0.0.1:1", timeout_s=0.5)
+    assert pass_.predict("Daniel Lee.") == []
+
+
+def test_vllm_pass_parses_canonical_response(monkeypatch):
+    """vLLM call returns OpenAI-shape tuples when given a valid JSON body."""
+    import json as _json
+    from unittest.mock import MagicMock
+
+    from pii_redactor import llm_client as llm_mod
+    from pii_redactor.hybrid.vllm_pass import VLLMNERPass
+
+    monkeypatch.delenv("PIIR_LLAMA_ENABLED", raising=False)
+
+    captured = {}
+
+    def fake_post_with_retry(url, payload, timeout, retries=3):  # noqa: ARG001
+        captured["url"] = url
+        captured["payload"] = payload
+        resp = MagicMock()
+        resp.json.return_value = {
+            "choices": [
+                {
+                    "message": {
+                        "role": "assistant",
+                        "content": _json.dumps(
+                            {"pii": [{"category": "name", "value": "Daniel Lee"}]}
+                        ),
+                    }
+                }
+            ]
+        }
+        return resp
+
+    monkeypatch.setattr(llm_mod, "_post_with_retry", fake_post_with_retry)
+
+    pass_ = VLLMNERPass(
+        base_url="http://vllm:11500",
+        model="llama3.1-8b-awq",
+        timeout_s=5.0,
+    )
+    out = pass_.predict("Patient Daniel Lee presented.")
+    assert any(cat == "private_person" and val == "Daniel Lee" for cat, _, _, val in out)
+    assert captured["url"] == "http://vllm:11500/v1/chat/completions"
+    assert captured["payload"]["model"] == "llama3.1-8b-awq"
+    assert captured["payload"]["response_format"] == {"type": "json_object"}
+    assert captured["payload"]["temperature"] == 0.0
+
+
+def test_vllm_pass_health_check_ok_and_fail(monkeypatch):
+    """health_check() returns True on 200, False on URLError."""
+    from pii_redactor.hybrid.vllm_pass import VLLMNERPass
+
+    class _OkCtx:
+        status = 200
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc):  # noqa: D401
+            return False
+
+    pass_ = VLLMNERPass(base_url="http://vllm:11500", timeout_s=1.0)
+    monkeypatch.setattr(
+        "urllib.request.urlopen",
+        lambda *a, **kw: _OkCtx(),  # noqa: ARG005
+    )
+    assert pass_.health_check() is True
+
+    def _boom(*a, **kw):  # noqa: ARG001
+        raise OSError("connection refused")
+
+    monkeypatch.setattr("urllib.request.urlopen", _boom)
+    assert pass_.health_check() is False
+
+
+def test_select_llama_backend_explicit_ollama(monkeypatch):
+    """PIIR_LLAMA_BACKEND=ollama short-circuits the auto-detection."""
+    from pii_redactor.hybrid.llama_pass import LlamaNERPass
+    from pii_redactor.hybrid.vllm_pass import select_llama_backend
+
+    monkeypatch.setenv("PIIR_LLAMA_BACKEND", "ollama")
+    monkeypatch.setenv("PIIR_LLAMA_ENABLED", "true")
+    name, inst = select_llama_backend()
+    assert name == "ollama"
+    assert isinstance(inst, LlamaNERPass)
+
+
+def test_select_llama_backend_explicit_vllm(monkeypatch):
+    """PIIR_LLAMA_BACKEND=vllm builds the vLLM pass even if endpoint absent."""
+    from pii_redactor.hybrid.vllm_pass import VLLMNERPass, select_llama_backend
+
+    monkeypatch.setenv("PIIR_LLAMA_BACKEND", "vllm")
+    monkeypatch.setenv("PIIR_LLAMA_ENABLED", "true")
+    name, inst = select_llama_backend()
+    assert name == "vllm"
+    assert isinstance(inst, VLLMNERPass)
+
+
+def test_select_llama_backend_auto_prefers_vllm(monkeypatch):
+    """auto mode picks vLLM when its health check passes."""
+    from pii_redactor.hybrid import vllm_pass as vllm_mod
+    from pii_redactor.hybrid.vllm_pass import VLLMNERPass, select_llama_backend
+
+    monkeypatch.setenv("PIIR_LLAMA_BACKEND", "auto")
+    monkeypatch.setenv("PIIR_LLAMA_ENABLED", "true")
+    monkeypatch.setattr(vllm_mod.VLLMNERPass, "health_check", lambda self: True)
+    name, inst = select_llama_backend()
+    assert name == "vllm"
+    assert isinstance(inst, VLLMNERPass)
+
+
+def test_select_llama_backend_auto_falls_back_to_ollama(monkeypatch):
+    """auto mode falls back to Ollama when vLLM is unreachable."""
+    from pii_redactor.hybrid import vllm_pass as vllm_mod
+    from pii_redactor.hybrid.llama_pass import LlamaNERPass
+    from pii_redactor.hybrid.vllm_pass import select_llama_backend
+
+    monkeypatch.setenv("PIIR_LLAMA_BACKEND", "auto")
+    monkeypatch.setenv("PIIR_LLAMA_ENABLED", "true")
+    monkeypatch.setattr(vllm_mod.VLLMNERPass, "health_check", lambda self: False)
+    name, inst = select_llama_backend()
+    assert name == "ollama"
+    assert isinstance(inst, LlamaNERPass)
+
+
+def test_select_llama_backend_disabled(monkeypatch):
+    """PIIR_LLAMA_ENABLED=false → disabled sentinel, no instance."""
+    from pii_redactor.hybrid.vllm_pass import select_llama_backend
+
+    monkeypatch.setenv("PIIR_LLAMA_ENABLED", "false")
+    name, inst = select_llama_backend()
+    assert name == "disabled"
+    assert inst is None
+
+
+def test_hybrid_detector_records_vllm_backend_name(monkeypatch):
+    """HybridDetector surfaces vLLM backend identity via gate_stats."""
+    from pii_redactor.hybrid.pipeline import HybridDetector
+    from pii_redactor.hybrid.vllm_pass import VLLMNERPass
+
+    monkeypatch.setenv("PIIR_LLAMA_ENABLED", "true")
+    fake = VLLMNERPass(base_url="http://vllm:11500", model="llama3.1-8b-awq")
+    detector = HybridDetector(
+        openai_backend=FakeOpenAIBackend(canned=[]),
+        llama_pass=fake,
+        use_llama_pass=True,
+        gate_mode="always",
+    )
+    stats = detector.gate_stats()
+    assert stats["llama_backend"] == "vllm"
+    assert stats["vllm_model"] == "llama3.1-8b-awq"
+    assert stats["vllm_quant"] == "awq_marlin"
+
+
+def test_hybrid_detector_records_ollama_backend_name(monkeypatch):
+    """HybridDetector surfaces Ollama backend identity via gate_stats."""
+    from pii_redactor.hybrid.llama_pass import LlamaNERPass
+    from pii_redactor.hybrid.pipeline import HybridDetector
+
+    monkeypatch.setenv("PIIR_LLAMA_ENABLED", "true")
+    fake = LlamaNERPass(base_url="http://ollama:11434", model="llama3.1:8b")
+    detector = HybridDetector(
+        openai_backend=FakeOpenAIBackend(canned=[]),
+        llama_pass=fake,
+        use_llama_pass=True,
+        gate_mode="always",
+    )
+    stats = detector.gate_stats()
+    assert stats["llama_backend"] == "ollama"
+    assert stats["ollama_model"] == "llama3.1:8b"

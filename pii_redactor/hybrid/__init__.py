@@ -28,6 +28,7 @@ from .pipeline import (
     should_invoke_llama,
 )
 from .regex_supplement import supplement_with_regex
+from .vllm_pass import VLLMNERPass, select_llama_backend
 
 __all__ = [
     "DEFAULT_GATE_MIN_SCORE",
@@ -39,8 +40,10 @@ __all__ = [
     "HybridDetector",
     "LlamaNERPass",
     "OpenAIPrivacyFilter",
+    "VLLMNERPass",
     "build_hybrid_pipeline",
     "resolve_account_numbers",
+    "select_llama_backend",
     "should_invoke_llama",
     "supplement_with_regex",
 ]

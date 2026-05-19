@@ -40,6 +40,7 @@ from .au_resolver import resolve_account_numbers
 from .llama_pass import LlamaNERPass
 from .openai_backend import OpenAIPrivacyFilter
 from .regex_supplement import supplement_with_regex
+from .vllm_pass import VLLMNERPass, select_llama_backend
 
 logger = logging.getLogger(__name__)
 
@@ -53,26 +54,32 @@ GATE_MODE_NEVER = "never"
 VALID_GATE_MODES = frozenset({GATE_MODE_CONFIDENCE, GATE_MODE_ALWAYS, GATE_MODE_NEVER})
 
 DEFAULT_GATE_MODE = GATE_MODE_CONFIDENCE
-DEFAULT_GATE_MIN_SCORE = 0.85
-DEFAULT_GATE_MIN_TOKENS = 50
+# Tuned for: zero Gretel leak regression + Medical 100% + max llama-skip rate.
+# Score threshold 0.7 (not 0.85) — only spans the openai head is *genuinely*
+# hedging on flip the gate. 0.85 turned out to fire on almost every doc.
+DEFAULT_GATE_MIN_SCORE = 0.70
+# Token floor 200 (not 50) — short structured form docs (the bulk of
+# Gretel-100) get the v0.2.0 fast path; only longer narrative docs invoke
+# the llama pass.
+DEFAULT_GATE_MIN_TOKENS = 200
 
-# Narrative cues — substrings (case-insensitive). The presence of any one
-# of these is a strong signal the document is a clinical/legal/casework
-# narrative where the openai head systematically under-recalls names,
-# addresses, and DOBs that llama's prompt-driven pass recovers.
+# Narrative cues — substrings (case-insensitive). Deliberately CLINICAL-
+# and LEGAL-ONLY: words / phrases that almost never appear in structured
+# financial / form data but always appear in casework narrative. Generic
+# verbs like "born on", "located at", titles like "Mr.", "Ms.", "Dr."
+# were tested and over-fired — they appear in every Gretel-100 fixture
+# doc and would defeat the gate entirely.
 _NARRATIVE_CUE_PATTERN = re.compile(
     r"\b("
-    r"the patient|the client|the customer|the resident|"
-    r"patient\s+[A-Z]|client\s+[A-Z]|resident\s+[A-Z]|"
-    r"diagnosed with|presenting with|admitted (to|with|for)|"
-    r"discharged|located at|residing at|born on|date of birth|"
-    r"\bdob\b|"
-    r"named|known as|"
-    r"dr\.?\s+[A-Z]|mr\.?\s+[A-Z]|mrs\.?\s+[A-Z]|ms\.?\s+[A-Z]|"
-    r"prof\.?\s+[A-Z]|a/prof\.?\s+[A-Z]|"
-    r"clinician|physician|psychiatrist|"
-    r"the deceased|the defendant|the plaintiff|the applicant|"
-    r"mrn[-:]"
+    r"the patient|the client(?!'s account)|the resident|"
+    r"patient\s+[A-Z][a-z]+|the deceased|the defendant|the plaintiff|"
+    r"diagnosed with|presenting with|presented with|"
+    r"admitted (to|with|for|after)|discharged from|"
+    r"clinician|physician|psychiatrist|outpatient|inpatient|"
+    r"medical history|chief complaint|assessment and plan|"
+    r"a/prof\.?\s+[A-Z][a-z]+|prof\.?\s+[A-Z][a-z]+|"
+    r"dr\.?\s+[A-Z][a-z]+|"
+    r"\bmrn[-:]\s*[A-Z0-9]"
     r")",
     re.IGNORECASE,
 )
@@ -154,15 +161,22 @@ def should_invoke_llama(
     if mode == GATE_MODE_NEVER:
         return False, "mode=never"
     # confidence mode
-    if openai_scores:
-        lo = min(openai_scores)
-        if lo < min_score:
-            return True, f"openai_min_score={lo:.3f}<{min_score:.3f}"
+    # 1. Narrative cues are the strongest signal — clinical/legal text
+    #    where the calibrated head consistently under-recalls names + DOBs.
     if _has_narrative_cue(text):
         return True, "narrative_cue"
+    # 2. Long documents — narrative PII tends to live in longer text.
     n_tokens = _token_count(text)
     if n_tokens >= min_tokens:
         return True, f"tokens={n_tokens}>={min_tokens}"
+    # 3. Multi-span low confidence — at least two spans below the floor
+    #    suggests systematic hedging (one is noise, two is signal).
+    if openai_scores:
+        below = [s for s in openai_scores if s < min_score]
+        if len(below) >= 2:
+            return True, (
+                f"openai_low_conf={len(below)}<{min_score:.2f}"
+            )
     return False, f"skip(tokens={n_tokens},spans={len(openai_scores)})"
 
 
@@ -179,21 +193,41 @@ class HybridDetector:
         self,
         openai_backend: OpenAIPrivacyFilter | None = None,
         use_regex_supplement: bool = True,
-        llama_pass: LlamaNERPass | None = None,
+        llama_pass: LlamaNERPass | VLLMNERPass | None = None,
         use_llama_pass: bool | None = None,
         gate_mode: str | None = None,
         gate_min_score: float | None = None,
         gate_min_tokens: int | None = None,
+        llama_backend: str | None = None,
     ):
         self.openai = openai_backend or OpenAIPrivacyFilter()
         self.use_regex_supplement = use_regex_supplement
         if use_llama_pass is None:
             use_llama_pass = _env_truthy("PIIR_LLAMA_ENABLED", True)
         self.use_llama_pass = use_llama_pass
+        # Phase 2.z: select the llama narrative backend (vLLM / Ollama).
+        # Explicit injection still wins so tests can pass in fakes; otherwise
+        # respect PIIR_LLAMA_BACKEND (default: auto-detect vLLM, fall back).
         if self.use_llama_pass:
-            self.llama = llama_pass or LlamaNERPass()
+            if llama_pass is not None:
+                self.llama = llama_pass
+                # Best-effort identification of an injected pass for /info.
+                self.llama_backend_name = (
+                    "vllm"
+                    if isinstance(llama_pass, VLLMNERPass)
+                    else "ollama"
+                    if isinstance(llama_pass, LlamaNERPass)
+                    else "custom"
+                )
+            else:
+                self.llama_backend_name, self.llama = select_llama_backend(
+                    llama_backend
+                )
+                if self.llama is None:
+                    self.use_llama_pass = False
         else:
             self.llama = None
+            self.llama_backend_name = "disabled"
         # Phase 2.y gate config — env knobs take effect at __init__ time so
         # the gate state is observable via /info on the FastAPI service.
         if gate_mode is None:
@@ -356,7 +390,7 @@ class HybridDetector:
     def gate_stats(self) -> dict:
         """Return cumulative gate invocation stats for /health + bench logs."""
         total = self._gate_invocations + self._gate_skips
-        return {
+        stats: dict = {
             "mode": self.gate_mode,
             "min_score": self.gate_min_score,
             "min_tokens": self.gate_min_tokens,
@@ -367,6 +401,18 @@ class HybridDetector:
             ),
             "documents_processed": total,
         }
+        backend = getattr(self, "llama_backend_name", None)
+        if backend:
+            stats["llama_backend"] = backend
+            llama_obj = self.llama
+            if isinstance(llama_obj, VLLMNERPass):
+                stats["vllm_model"] = llama_obj.model
+                stats["vllm_quant"] = llama_obj.quant
+                stats["vllm_base_url"] = llama_obj.base_url
+            elif isinstance(llama_obj, LlamaNERPass):
+                stats["ollama_model"] = llama_obj.model
+                stats["ollama_base_url"] = llama_obj.base_url
+        return stats
 
     def warmup(self) -> None:
         self.openai.warmup()
@@ -382,11 +428,12 @@ def build_hybrid_pipeline(
     openai_backend: OpenAIPrivacyFilter | None = None,
     use_regex_supplement: bool = True,
     warmup: bool = True,
-    llama_pass: LlamaNERPass | None = None,
+    llama_pass: LlamaNERPass | VLLMNERPass | None = None,
     use_llama_pass: bool | None = None,
     gate_mode: str | None = None,
     gate_min_score: float | None = None,
     gate_min_tokens: int | None = None,
+    llama_backend: str | None = None,
 ) -> Pipeline:
     """Construct a Pipeline that uses the hybrid detector.
 
@@ -403,6 +450,7 @@ def build_hybrid_pipeline(
         gate_mode=gate_mode,
         gate_min_score=gate_min_score,
         gate_min_tokens=gate_min_tokens,
+        llama_backend=llama_backend,
     )
     if warmup:
         try:

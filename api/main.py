@@ -218,13 +218,31 @@ def health() -> dict:
             except Exception:  # noqa: BLE001
                 gpu_name = "unknown"
         payload["gpu"] = gpu_name
-        # Phase 2.y: expose the llama gate mode + active LLM backend so
-        # /health alone tells you which pipeline variant is serving.
+        # Phase 2.y: expose the llama gate mode so /health alone tells you
+        # which gate variant is serving.
         payload["llama_gate"] = os.environ.get("PIIR_LLAMA_GATE", "confidence")
+        # Phase 2.z: probe the live pipeline so /health reflects the actual
+        # llama backend selected (vLLM auto-fallback aware), not just the env.
         llama_raw = os.environ.get("PIIR_LLAMA_ENABLED", "true").lower()
-        payload["llama_backend"] = (
-            "ollama" if llama_raw in {"1", "true", "yes", "on"} else "disabled"
-        )
+        llama_enabled = llama_raw in {"1", "true", "yes", "on"}
+        if not llama_enabled:
+            payload["llama_backend"] = "disabled"
+        else:
+            payload["llama_backend"] = os.environ.get("PIIR_LLAMA_BACKEND", "auto")
+            try:
+                pipeline = get_pipeline()
+                detector = getattr(pipeline, "detector", None)
+                stats_fn = getattr(detector, "gate_stats", None)
+                if callable(stats_fn):
+                    stats = stats_fn()
+                    if stats.get("llama_backend"):
+                        payload["llama_backend"] = stats["llama_backend"]
+                    if stats.get("vllm_model"):
+                        payload["vllm_model"] = stats["vllm_model"]
+                    if stats.get("vllm_quant"):
+                        payload["vllm_quant"] = stats["vllm_quant"]
+            except Exception:  # noqa: BLE001
+                pass
     return payload
 
 
