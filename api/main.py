@@ -203,7 +203,15 @@ def health() -> dict:
     """
     backend = os.environ.get("PIIR_BACKEND", "mock")
     payload: dict = {"status": "ok", "backend": backend}
-    if backend == "transformers_au":
+    # v0.4.0: when the finetuned backend is selected, surface the adapter id
+    # in /health so orchestrators can confirm the right LoRA is loaded.
+    if backend == "transformers_au_finetuned":
+        adapter_path = os.environ.get(
+            "PIIR_LORA_ADAPTER", "/mnt/ai/adapters/redact-au-1b/best"
+        )
+        payload["adapter"] = os.path.basename(adapter_path.rstrip("/")) or "redact-au-1b"
+        payload["adapter_path"] = adapter_path
+    if backend in {"transformers_au", "transformers_au_finetuned"}:
         # Best-effort GPU label. Don't require torch at import time so the
         # endpoint stays cheap and never fails over a missing dep.
         gpu_name = os.environ.get("REDACT_AU_GPU_NAME")
@@ -228,7 +236,8 @@ def health() -> dict:
         if not llama_enabled:
             payload["llama_backend"] = "disabled"
         else:
-            payload["llama_backend"] = os.environ.get("PIIR_LLAMA_BACKEND", "auto")
+            # v0.4.0: default changed from "auto" → "disabled"
+            payload["llama_backend"] = os.environ.get("PIIR_LLAMA_BACKEND", "disabled")
             try:
                 pipeline = get_pipeline()
                 detector = getattr(pipeline, "detector", None)

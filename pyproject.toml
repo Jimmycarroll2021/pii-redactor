@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "pii-redactor-au"
-version = "0.3.2"
+version = "0.4.0"
 description = "Pre-ingestion PII de-identification for Australian government data, using zero-shot LLM detection with checksum validation."
 readme = "README.md"
 requires-python = ">=3.10"
@@ -34,6 +34,7 @@ hybrid = [
     "transformers>=4.40.0",
     "torch>=2.1.0",
     "huggingface_hub>=0.24.0",
+    "peft>=0.13.0",
 ]
 api = ["fastapi>=0.110.0", "uvicorn[standard]>=0.27.0", "pydantic>=2.6.0"]
 ui = ["gradio>=4.36.0"]
@@ -41,6 +42,7 @@ all = [
     "huggingface_hub>=0.24.0",
     "transformers>=4.40.0",
     "torch>=2.1.0",
+    "peft>=0.13.0",
     "fastapi>=0.110.0",
     "uvicorn[standard]>=0.27.0",
     "pydantic>=2.6.0",

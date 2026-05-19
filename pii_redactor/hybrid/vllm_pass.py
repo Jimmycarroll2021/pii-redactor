@@ -214,12 +214,17 @@ def select_llama_backend(
     """
     if not _env_truthy("PIIR_LLAMA_ENABLED", True):
         return "disabled", None
-    requested = (backend or os.environ.get("PIIR_LLAMA_BACKEND", "auto")).lower()
+    # v0.4.0: default flipped from "auto" → "disabled" (LoRA-finetuned base
+    # now carries the narrative recall load). Users can opt back into the
+    # llama pass with PIIR_LLAMA_BACKEND=vllm or ollama.
+    requested = (backend or os.environ.get("PIIR_LLAMA_BACKEND", "disabled")).lower()
+    if requested == "disabled":
+        return "disabled", None
     if requested not in {"vllm", "ollama", "auto"}:
         logger.warning(
-            "Unknown PIIR_LLAMA_BACKEND=%r, falling back to auto", requested
+            "Unknown PIIR_LLAMA_BACKEND=%r, falling back to disabled", requested
         )
-        requested = "auto"
+        return "disabled", None
 
     if requested == "ollama":
         from .llama_pass import LlamaNERPass  # noqa: PLC0415

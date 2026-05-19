@@ -17,7 +17,11 @@ class Config:
     """Runtime configuration."""
 
     # LLM backend selection
-    backend: str = "mock"  # "llama_cpp" | "hf" | "ollama" | "mock" | "transformers_au"
+    # "mock" | "llama_cpp" | "hf" | "ollama" | "transformers_au" |
+    # "transformers_au_finetuned" (v0.4.0+ — openai/privacy-filter + LoRA)
+    backend: str = "mock"
+    # LoRA adapter path (used when backend == transformers_au_finetuned).
+    lora_adapter_path: str = "/mnt/ai/adapters/redact-au-1b/best"
     policy_profile: str = "kg_rag_default"
 
     # llama.cpp server
@@ -62,6 +66,9 @@ class Config:
         return cls(
             policy_profile=policy_profile,
             backend=os.environ.get("PIIR_BACKEND", "mock"),
+            lora_adapter_path=os.environ.get(
+                "PIIR_LORA_ADAPTER", "/mnt/ai/adapters/redact-au-1b/best"
+            ),
             llama_cpp_url=os.environ.get("PIIR_LLAMA_CPP_URL", "http://localhost:8080"),
             llama_cpp_model_name=os.environ.get(
                 "PIIR_LLAMA_CPP_MODEL", "llama-3-8b-instruct"

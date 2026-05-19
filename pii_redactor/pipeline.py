@@ -109,12 +109,12 @@ def build_llm_client(config: Config) -> LLMClient:
         )
     if config.backend == "mock":
         return MockClient()
-    if config.backend == "transformers_au":
-        # The hybrid backend doesn't use the LLMClient protocol; it owns its
-        # own OpenAIPrivacyFilter. build_pipeline() short-circuits before
-        # this is called for transformers_au, but if a caller invokes
-        # build_llm_client directly we return a Mock so existing tooling
-        # that probes for `.name` keeps working.
+    if config.backend in {"transformers_au", "transformers_au_finetuned"}:
+        # The hybrid backend (raw or LoRA-finetuned) doesn't use the LLMClient
+        # protocol; it owns its own OpenAIPrivacyFilter. build_pipeline()
+        # short-circuits before this is called for hybrid backends, but if a
+        # caller invokes build_llm_client directly we return a Mock so existing
+        # tooling that probes for `.name` keeps working.
         return MockClient()
     raise ValueError(f"Unknown backend: {config.backend}")
 
@@ -130,9 +130,10 @@ def build_pipeline(
     follow the original LLM-detector flow.
     """
     cfg = config or Config.from_env()
-    if cfg.backend == "transformers_au":
+    if cfg.backend in {"transformers_au", "transformers_au_finetuned"}:
         # Local import — avoids loading transformers when the hybrid
-        # backend isn't selected.
+        # backend isn't selected. The finetuned variant is selected inside
+        # build_hybrid_pipeline via cfg.backend.
         from .hybrid import build_hybrid_pipeline
 
         return build_hybrid_pipeline(cfg)

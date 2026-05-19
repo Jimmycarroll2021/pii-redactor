@@ -42,6 +42,35 @@ from .openai_backend import OpenAIPrivacyFilter
 from .regex_supplement import supplement_with_regex
 from .vllm_pass import VLLMNERPass, select_llama_backend
 
+
+def _select_openai_backend(
+    backend: str | None = None,
+    adapter_path: str | None = None,
+) -> OpenAIPrivacyFilter:
+    """Pick OpenAI/Privacy-Filter backend variant based on ``PIIR_BACKEND``.
+
+    Returns:
+      - ``FinetunedOpenAIBackend(adapter_path=...)`` if backend == ``transformers_au_finetuned``
+      - ``OpenAIPrivacyFilter()`` otherwise (the base / "transformers_au" path)
+
+    The finetuned path soft-falls back to the base if the adapter dir is
+    missing — preserves liveness so a misconfigured deployment still works.
+    """
+    requested = (backend or os.environ.get("PIIR_BACKEND", "")).lower()
+    if requested == "transformers_au_finetuned":
+        from .finetuned_backend import FinetunedOpenAIBackend  # noqa: PLC0415
+
+        try:
+            return FinetunedOpenAIBackend(adapter_path=adapter_path)
+        except FileNotFoundError as exc:
+            logger.warning(
+                "LoRA adapter unavailable (%s); falling back to base "
+                "openai/privacy-filter",
+                exc,
+            )
+            return OpenAIPrivacyFilter()
+    return OpenAIPrivacyFilter()
+
 logger = logging.getLogger(__name__)
 
 
@@ -199,12 +228,36 @@ class HybridDetector:
         gate_min_score: float | None = None,
         gate_min_tokens: int | None = None,
         llama_backend: str | None = None,
+        backend: str | None = None,
+        lora_adapter_path: str | None = None,
     ):
-        self.openai = openai_backend or OpenAIPrivacyFilter()
+        # v0.4.0: pick FinetunedOpenAIBackend when backend=transformers_au_finetuned
+        self.openai = openai_backend or _select_openai_backend(
+            backend=backend, adapter_path=lora_adapter_path
+        )
         self.use_regex_supplement = use_regex_supplement
         if use_llama_pass is None:
             use_llama_pass = _env_truthy("PIIR_LLAMA_ENABLED", True)
         self.use_llama_pass = use_llama_pass
+        # v0.4.0: short-circuit when llama_backend == "disabled" AND no
+        # explicit llama_pass was injected. Skips the health check and any
+        # HTTP traffic — important because the default config no longer
+        # ships with a llama endpoint reachable. Explicit injection (e.g.
+        # for tests or custom deployments) takes precedence.
+        effective_llama_backend = (
+            llama_backend or os.environ.get("PIIR_LLAMA_BACKEND", "disabled")
+        )
+        if (
+            llama_pass is None
+            and effective_llama_backend == "disabled"
+        ):
+            self.use_llama_pass = False
+            self.llama = None
+            self.llama_backend_name = "disabled"
+            self._configure_gate(gate_mode, gate_min_score, gate_min_tokens)
+            self._gate_invocations = 0
+            self._gate_skips = 0
+            return
         # Phase 2.z: select the llama narrative backend (vLLM / Ollama).
         # Explicit injection still wins so tests can pass in fakes; otherwise
         # respect PIIR_LLAMA_BACKEND (default: auto-detect vLLM, fall back).
@@ -228,8 +281,20 @@ class HybridDetector:
         else:
             self.llama = None
             self.llama_backend_name = "disabled"
-        # Phase 2.y gate config — env knobs take effect at __init__ time so
-        # the gate state is observable via /info on the FastAPI service.
+        # Phase 2.y gate config (factored so v0.4.0 disabled-short-circuit reuses it)
+        self._configure_gate(gate_mode, gate_min_score, gate_min_tokens)
+        # Lightweight runtime stats for observability — incremented per
+        # .detect() call. Surfaced via .gate_stats() and (in the FastAPI
+        # layer) the /health response.
+        self._gate_invocations = 0
+        self._gate_skips = 0
+
+    def _configure_gate(
+        self,
+        gate_mode: str | None,
+        gate_min_score: float | None,
+        gate_min_tokens: int | None,
+    ) -> None:
         if gate_mode is None:
             gate_mode = _env_str("PIIR_LLAMA_GATE", DEFAULT_GATE_MODE)
         if gate_mode not in VALID_GATE_MODES:
@@ -250,11 +315,6 @@ class HybridDetector:
             if gate_min_tokens is not None
             else _env_int("PIIR_LLAMA_GATE_MIN_TOKENS", DEFAULT_GATE_MIN_TOKENS)
         )
-        # Lightweight runtime stats for observability — incremented per
-        # .detect() call. Surfaced via .gate_stats() and (in the FastAPI
-        # layer) the /health response.
-        self._gate_invocations = 0
-        self._gate_skips = 0
 
     # The interface PIIDetector exposes is .detect(text) -> list[PIISpan].
     # We mirror that exactly so HybridDetector slots into Pipeline unchanged.
@@ -441,7 +501,11 @@ def build_hybrid_pipeline(
     is drop-in-compatible with the FastAPI service.
     """
     cfg = config or Config.from_env()
-    backend = openai_backend or OpenAIPrivacyFilter()
+    # v0.4.0: backend selection routed through the detector so the finetuned
+    # path is picked up automatically when PIIR_BACKEND=transformers_au_finetuned.
+    backend = openai_backend or _select_openai_backend(
+        backend=cfg.backend, adapter_path=cfg.lora_adapter_path
+    )
     detector = HybridDetector(
         openai_backend=backend,
         use_regex_supplement=use_regex_supplement,
@@ -451,6 +515,8 @@ def build_hybrid_pipeline(
         gate_min_score=gate_min_score,
         gate_min_tokens=gate_min_tokens,
         llama_backend=llama_backend,
+        backend=cfg.backend,
+        lora_adapter_path=cfg.lora_adapter_path,
     )
     if warmup:
         try:
