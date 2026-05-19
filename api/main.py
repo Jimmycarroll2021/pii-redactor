@@ -218,6 +218,13 @@ def health() -> dict:
             except Exception:  # noqa: BLE001
                 gpu_name = "unknown"
         payload["gpu"] = gpu_name
+        # Phase 2.y: expose the llama gate mode + active LLM backend so
+        # /health alone tells you which pipeline variant is serving.
+        payload["llama_gate"] = os.environ.get("PIIR_LLAMA_GATE", "confidence")
+        llama_raw = os.environ.get("PIIR_LLAMA_ENABLED", "true").lower()
+        payload["llama_backend"] = (
+            "ollama" if llama_raw in {"1", "true", "yes", "on"} else "disabled"
+        )
     return payload
 
 
@@ -226,7 +233,7 @@ def info() -> dict:
     pipeline = get_pipeline()
     max_concurrency = int(os.environ.get("PIIR_MAX_CONCURRENCY", "8"))
     cfg = Config.from_env()
-    return {
+    payload: dict = {
         "version": __version__,
         "model_used": pipeline.model_name,
         "backend": cfg.backend,
@@ -236,6 +243,16 @@ def info() -> dict:
         "fail_on_llm_error": cfg.fail_on_llm_error,
         "api_key_required": _env_truthy("PIIR_REQUIRE_API_KEY"),
     }
+    # Phase 2.y: expose the llama gate state when the hybrid detector is in
+    # use, so callers / smoke tests can verify the right gate mode is wired.
+    detector = getattr(pipeline, "detector", None)
+    stats_fn = getattr(detector, "gate_stats", None)
+    if callable(stats_fn):
+        try:
+            payload["llama_gate"] = stats_fn()
+        except Exception:  # noqa: BLE001
+            pass
+    return payload
 
 
 @app.get("/metrics", dependencies=[Depends(require_api_key)])

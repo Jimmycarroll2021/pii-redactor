@@ -432,6 +432,301 @@ def test_openai_backend_default_threshold_keeps_all(monkeypatch):
     assert len(out) == 2
 
 
+# --- Phase 2.y llama-gate regressions ---------------------------------------
+
+
+def test_gate_mode_never_skips_llama_even_with_narrative():
+    """PIIR_LLAMA_GATE=never reproduces v0.2.0 behaviour (openai+regex only)."""
+    from pii_redactor.hybrid import should_invoke_llama
+
+    invoke, reason = should_invoke_llama(
+        "The patient Daniel Lee presented with severe symptoms after admission",
+        openai_scores=[0.5],
+        mode="never",
+    )
+    assert invoke is False
+    assert "never" in reason
+
+
+def test_gate_mode_always_invokes_llama_even_on_short_doc():
+    """PIIR_LLAMA_GATE=always reproduces v0.3.0 behaviour."""
+    from pii_redactor.hybrid import should_invoke_llama
+
+    invoke, reason = should_invoke_llama(
+        "x", openai_scores=[0.99], mode="always"
+    )
+    assert invoke is True
+    assert "always" in reason
+
+
+def test_gate_confidence_skips_short_structured_doc():
+    """Short doc, high openai score, no cue → gate skips llama."""
+    from pii_redactor.hybrid import should_invoke_llama
+
+    text = "TFN: 123 456 782."  # 4 tokens, no cue
+    invoke, reason = should_invoke_llama(
+        text, openai_scores=[0.99], mode="confidence",
+        min_score=0.85, min_tokens=50,
+    )
+    assert invoke is False
+    assert "skip" in reason
+
+
+def test_gate_confidence_invokes_on_low_openai_score():
+    """A hedging openai head (score < min_score) flips the gate to invoke."""
+    from pii_redactor.hybrid import should_invoke_llama
+
+    invoke, reason = should_invoke_llama(
+        "A short doc", openai_scores=[0.7], mode="confidence",
+        min_score=0.85, min_tokens=50,
+    )
+    assert invoke is True
+    assert "openai_min_score" in reason
+
+
+def test_gate_confidence_invokes_on_narrative_cue():
+    """Clinical / legal narrative cues flip the gate to invoke even on a
+    short document with no openai spans yet emitted."""
+    from pii_redactor.hybrid import should_invoke_llama
+
+    text = "The patient was admitted to ward 3."
+    invoke, reason = should_invoke_llama(
+        text, openai_scores=[], mode="confidence",
+        min_score=0.85, min_tokens=50,
+    )
+    assert invoke is True
+    assert reason == "narrative_cue"
+
+
+def test_gate_confidence_invokes_on_long_doc():
+    """Long doc (>= MIN_TOKENS) flips the gate to invoke even with no cue."""
+    from pii_redactor.hybrid import should_invoke_llama
+
+    text = "word " * 60  # 60 tokens, no narrative cue
+    invoke, reason = should_invoke_llama(
+        text, openai_scores=[0.99], mode="confidence",
+        min_score=0.85, min_tokens=50,
+    )
+    assert invoke is True
+    assert "tokens=" in reason
+
+
+def test_gate_confidence_invokes_on_mrn_label():
+    """MRN-XXX style labels trigger the gate (medical narrative cue)."""
+    from pii_redactor.hybrid import should_invoke_llama
+
+    invoke, reason = should_invoke_llama(
+        "MRN-686040 Daniel Lee.",
+        openai_scores=[0.99], mode="confidence",
+        min_score=0.85, min_tokens=50,
+    )
+    assert invoke is True
+    assert reason == "narrative_cue"
+
+
+def test_gate_unknown_mode_falls_back_to_confidence(monkeypatch):
+    """Unknown env value coerces to default (confidence)."""
+    monkeypatch.setenv("PIIR_LLAMA_GATE", "garbage")
+    detector = HybridDetector(
+        openai_backend=FakeOpenAIBackend(canned=[]),
+        llama_pass=_FakeLlamaPass(canned=[]),
+        use_llama_pass=True,
+    )
+    assert detector.gate_mode == "confidence"
+
+
+def test_gate_env_knobs_picked_up(monkeypatch):
+    """Env knobs surface on the HybridDetector instance."""
+    monkeypatch.setenv("PIIR_LLAMA_GATE", "always")
+    monkeypatch.setenv("PIIR_LLAMA_GATE_MIN_SCORE", "0.91")
+    monkeypatch.setenv("PIIR_LLAMA_GATE_MIN_TOKENS", "73")
+    detector = HybridDetector(
+        openai_backend=FakeOpenAIBackend(canned=[]),
+        llama_pass=_FakeLlamaPass(canned=[]),
+        use_llama_pass=True,
+    )
+    assert detector.gate_mode == "always"
+    assert detector.gate_min_score == 0.91
+    assert detector.gate_min_tokens == 73
+
+
+def test_hybrid_detector_gate_skips_llama_call_on_easy_doc():
+    """End-to-end: short structured doc, high openai score → llama
+    .predict() is NEVER called (the gate skips it). This is the
+    throughput-recovery property that takes Gretel 0.34 d/s → 3+ d/s.
+    """
+    text = "Customer TFN: 123 456 782."
+    start = text.index("123 456 782")
+    end = start + len("123 456 782")
+    backend = FakeOpenAIBackend(
+        canned=[("account_number", start, end, "123 456 782")]
+    )
+
+    class _SpyLlama:
+        name = "spy-llama"
+
+        def __init__(self):
+            self.called = 0
+
+        def predict(self, text):  # noqa: ARG002
+            self.called += 1
+            return []
+
+        def warmup(self):
+            pass
+
+    spy = _SpyLlama()
+    detector = HybridDetector(
+        openai_backend=backend,
+        llama_pass=spy,
+        use_llama_pass=True,
+        gate_mode="confidence",
+        gate_min_score=0.85,
+        gate_min_tokens=50,
+    )
+    spans = detector.detect(text)
+    assert spy.called == 0
+    # The TFN still gets resolved from the openai span
+    assert any(s.category == PIICategory.TFN for s in spans)
+    # gate_stats reflects the skip
+    stats = detector.gate_stats()
+    assert stats["llama_skips"] == 1
+    assert stats["llama_invocations"] == 0
+
+
+def test_hybrid_detector_gate_invokes_llama_on_narrative_doc():
+    """End-to-end: clinical narrative cue → gate invokes llama, union
+    behaviour matches v0.3.0 (name recovered)."""
+    text = "Patient Daniel Lee, DOB 18/03/1986. MRN-686040."
+    openai_canned = [
+        ("private_date", text.index("18/03/1986"),
+         text.index("18/03/1986") + 10, "18/03/1986"),
+    ]
+    llama_canned = [
+        ("private_person", text.index("Daniel Lee"),
+         text.index("Daniel Lee") + 10, "Daniel Lee"),
+    ]
+    detector = HybridDetector(
+        openai_backend=FakeOpenAIBackend(canned=openai_canned),
+        llama_pass=_FakeLlamaPass(canned=llama_canned),
+        use_llama_pass=True,
+        gate_mode="confidence",
+        gate_min_score=0.85,
+        gate_min_tokens=50,
+    )
+    spans = detector.detect(text)
+    cats = {s.category.value for s in spans}
+    assert "name" in cats
+    stats = detector.gate_stats()
+    assert stats["llama_invocations"] == 1
+    assert stats["llama_skips"] == 0
+
+
+def test_hybrid_detector_gate_always_matches_v030_behaviour():
+    """gate=always reproduces v0.3.0 (no gate) regardless of doc shape."""
+    text = "Alex Wong."  # short, no cue, high score — gate would normally skip
+    openai_canned = []
+    llama_canned = [
+        ("private_person", 0, 9, "Alex Wong"),
+    ]
+    detector = HybridDetector(
+        openai_backend=FakeOpenAIBackend(canned=openai_canned),
+        llama_pass=_FakeLlamaPass(canned=llama_canned),
+        use_llama_pass=True,
+        gate_mode="always",
+        use_regex_supplement=False,
+    )
+    spans = detector.detect(text)
+    # gate=always means llama runs even though doc is short/structured
+    assert any(s.category == PIICategory.NAME for s in spans)
+
+
+def test_hybrid_detector_gate_never_matches_v020_behaviour():
+    """gate=never reproduces v0.2.0 (openai+regex only)."""
+    text = "Patient Daniel Lee presented for follow-up."
+    llama_canned = [
+        ("private_person", text.index("Daniel Lee"),
+         text.index("Daniel Lee") + 10, "Daniel Lee"),
+    ]
+    detector = HybridDetector(
+        openai_backend=FakeOpenAIBackend(canned=[]),
+        llama_pass=_FakeLlamaPass(canned=llama_canned),
+        use_llama_pass=True,
+        gate_mode="never",
+    )
+    spans = detector.detect(text)
+    # llama would have added the name, but the gate blocked it
+    assert all(s.category != PIICategory.NAME for s in spans)
+
+
+def test_hybrid_detector_name_shows_gate_mode():
+    """The model_used label exposes the gate mode for observability."""
+    detector = HybridDetector(
+        openai_backend=FakeOpenAIBackend(canned=[]),
+        llama_pass=_FakeLlamaPass(canned=[]),
+        use_llama_pass=True,
+        gate_mode="confidence",
+    )
+    assert "gate=confidence" in detector.name
+
+
+# --- predict_with_scores -----------------------------------------------------
+
+
+def test_openai_backend_predict_with_scores_returns_score(monkeypatch):
+    """predict_with_scores exposes the aggregator score so the gate can read it."""
+    from pii_redactor.hybrid.openai_backend import OpenAIPrivacyFilter
+
+    class _FakePipe:
+        def __call__(self, text):  # noqa: ARG002
+            return [
+                {"entity_group": "private_person", "score": 0.95,
+                 "start": 0, "end": 4, "word": "Jane"},
+                {"entity_group": "private_date", "score": 0.62,
+                 "start": 5, "end": 15, "word": "01/01/1990"},
+            ]
+
+    monkeypatch.delenv("PIIR_HF_SCORE_THRESHOLD", raising=False)
+    backend = OpenAIPrivacyFilter()
+    backend._pipeline = _FakePipe()
+    backend._device = -1
+    out = backend.predict_with_scores("Jane 01/01/1990.")
+    assert len(out) == 2
+    cats = [t[0] for t in out]
+    scores = [t[4] for t in out]
+    assert "private_person" in cats
+    assert min(scores) < 0.85  # low-confidence date span available to the gate
+    assert max(scores) > 0.85
+
+
+def test_hybrid_detector_uses_predict_with_scores_when_available():
+    """HybridDetector prefers the scored API but falls back to predict()."""
+    text = "Sample text"
+
+    class _LegacyBackend:
+        """Backend that only implements predict() — no scored API."""
+        name = "legacy"
+
+        def predict(self, text):  # noqa: ARG002
+            return [("private_person", 0, 6, "Sample")]
+
+        def warmup(self):
+            pass
+
+    detector = HybridDetector(
+        openai_backend=_LegacyBackend(),
+        llama_pass=_FakeLlamaPass(canned=[]),
+        use_llama_pass=True,
+        gate_mode="confidence",
+        gate_min_score=0.85,
+        gate_min_tokens=50,
+    )
+    spans = detector.detect(text)
+    # Fell back to predict() with score=1.0, then gate evaluated and (no
+    # cue, short, high score) → skipped llama. The openai span survived.
+    assert any(s.category == PIICategory.NAME for s in spans)
+
+
 def test_build_pipeline_transformers_au_dispatches_to_hybrid(monkeypatch):
     """build_pipeline routes PIIR_BACKEND=transformers_au to the hybrid path."""
     import pii_redactor.hybrid as hybrid_mod

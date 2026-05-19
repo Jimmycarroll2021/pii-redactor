@@ -16,14 +16,31 @@ Selectable via PIIR_BACKEND=transformers_au.
 from .au_resolver import resolve_account_numbers
 from .llama_pass import LlamaNERPass
 from .openai_backend import OpenAIPrivacyFilter
-from .pipeline import HybridDetector, build_hybrid_pipeline
+from .pipeline import (
+    DEFAULT_GATE_MIN_SCORE,
+    DEFAULT_GATE_MIN_TOKENS,
+    DEFAULT_GATE_MODE,
+    GATE_MODE_ALWAYS,
+    GATE_MODE_CONFIDENCE,
+    GATE_MODE_NEVER,
+    HybridDetector,
+    build_hybrid_pipeline,
+    should_invoke_llama,
+)
 from .regex_supplement import supplement_with_regex
 
 __all__ = [
+    "DEFAULT_GATE_MIN_SCORE",
+    "DEFAULT_GATE_MIN_TOKENS",
+    "DEFAULT_GATE_MODE",
+    "GATE_MODE_ALWAYS",
+    "GATE_MODE_CONFIDENCE",
+    "GATE_MODE_NEVER",
     "HybridDetector",
     "LlamaNERPass",
     "OpenAIPrivacyFilter",
     "build_hybrid_pipeline",
     "resolve_account_numbers",
+    "should_invoke_llama",
     "supplement_with_regex",
 ]

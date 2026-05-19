@@ -181,6 +181,17 @@ class OpenAIPrivacyFilter:
         in the source text (the model occasionally returns trimmed
         subword fragments at chunk boundaries — those are dropped).
         """
+        return [(c, s, e, v) for (c, s, e, v, _score) in self.predict_with_scores(text)]
+
+    def predict_with_scores(
+        self, text: str
+    ) -> list[tuple[str, int, int, str, float]]:
+        """Same as predict() but also returns the per-span aggregator score.
+
+        Used by the hybrid pipeline's llama-gate to decide whether the
+        openai pass is confident enough to skip the (much slower) llama
+        narrative pass for this document.
+        """
         if not text:
             return []
         self._ensure_loaded()
@@ -190,17 +201,18 @@ class OpenAIPrivacyFilter:
             logger.warning("OpenAI privacy-filter inference failed: %s", exc)
             return []
 
-        out: list[tuple[str, int, int, str]] = []
+        out: list[tuple[str, int, int, str, float]] = []
         for p in preds:
             # Apply the configured score floor. The aggregator already
             # returns a `score` field on each entity in [0, 1]; spans below
             # the floor are dropped so the AU resolver doesn't see noise.
             score = p.get("score", 1.0)
             try:
-                if float(score) < self.score_threshold:
-                    continue
+                score_f = float(score)
             except (TypeError, ValueError):
-                pass
+                score_f = 1.0
+            if score_f < self.score_threshold:
+                continue
             cat = p.get("entity_group") or p.get("entity")
             if not cat:
                 continue
@@ -227,5 +239,7 @@ class OpenAIPrivacyFilter:
             real_end = end - rstripped_len
             if real_end <= real_start:
                 continue
-            out.append((cat, real_start, real_end, text[real_start:real_end]))
+            out.append(
+                (cat, real_start, real_end, text[real_start:real_end], score_f)
+            )
         return out
