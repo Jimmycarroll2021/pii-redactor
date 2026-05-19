@@ -272,6 +272,21 @@ def test_hybrid_detector_handles_empty_text():
     assert detector.detect("") == []
 
 
+def test_regex_supplement_skips_username_when_env_disables(monkeypatch):
+    """Phase 2.x: PIIR_REGEX_USERNAME=false → no USERNAME from regex layer."""
+    monkeypatch.setenv("PIIR_REGEX_USERNAME", "false")
+    text = "Contact: tw_brian740 for billing."
+    extra = supplement_with_regex(text, [])
+    assert all(s.category != PIICategory.USERNAME for s in extra)
+
+
+def test_regex_supplement_default_keeps_username():
+    """Default behaviour (no env) keeps USERNAME hits intact."""
+    text = "Contact: tw_brian740 for billing."
+    extra = supplement_with_regex(text, [])
+    assert any(s.category == PIICategory.USERNAME for s in extra)
+
+
 def test_openai_backend_honours_score_threshold(monkeypatch):
     """Phase 2.x: PIIR_HF_SCORE_THRESHOLD env should be honoured by predict()."""
     from pii_redactor.hybrid.openai_backend import OpenAIPrivacyFilter

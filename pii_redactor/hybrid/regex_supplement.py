@@ -14,10 +14,17 @@ runs in microseconds, so the throughput cost is negligible.
 This module is intentionally NOT a fallback when OpenAI fails: it always
 runs in parallel and unions its hits with OpenAI's. The merge layer in
 HybridDetector deduplicates.
+
+Phase 2.x note: the USERNAME regex was calibrated against social-media
+corpora (Gretel handles) and fires on clinical prose like ``Prof. Williams``,
+``12-month``, ``panel``. In the hybrid+llama path llama covers usernames
+naturally, so USERNAME can be excluded from the regex supplement to
+prevent the title/surname FP cascade. Toggle via PIIR_REGEX_USERNAME=false.
 """
 from __future__ import annotations
 
 import logging
+import os
 from collections.abc import Iterable
 
 from ..models import PIICategory, PIISpan
@@ -26,12 +33,23 @@ from ..validators import regex_first_pass
 logger = logging.getLogger(__name__)
 
 
-# Categories the regex layer is *better* at than OpenAI on the Gretel corpus.
-# Including everything risks reintroducing the FP noise that motivated the
-# move away from regex-only. Keep this list tight.
-_REGEX_HIGH_VALUE_CATEGORIES = frozenset(
-    {
-        PIICategory.USERNAME,
+def _username_enabled() -> bool:
+    raw = os.environ.get("PIIR_REGEX_USERNAME")
+    if raw is None:
+        return True
+    return raw.lower() in {"1", "true", "yes", "on"}
+
+
+def _high_value_categories() -> frozenset[PIICategory]:
+    """Categories the regex layer is *better* at than OpenAI on Gretel.
+
+    Including everything risks reintroducing the FP noise that motivated
+    the move away from regex-only. USERNAME is dropped when
+    ``PIIR_REGEX_USERNAME=false`` — recommended for the hybrid+llama
+    path where llama covers usernames natively and the regex layer
+    over-extracts on clinical prose.
+    """
+    cats: set[PIICategory] = {
         PIICategory.PHONE,
         PIICategory.ADDRESS,
         PIICategory.EMAIL,
@@ -51,7 +69,13 @@ _REGEX_HIGH_VALUE_CATEGORIES = frozenset(
         PIICategory.PASSPORT,
         PIICategory.PATIENT_ID,
     }
-)
+    if _username_enabled():
+        cats.add(PIICategory.USERNAME)
+    return frozenset(cats)
+
+
+# Backwards-compatible module-level view, re-evaluated on import.
+_REGEX_HIGH_VALUE_CATEGORIES = _high_value_categories()
 
 
 # When regex finds a USERNAME, allow it even if it overlaps a NAME span from
@@ -86,7 +110,7 @@ def _overlap_categories(
 def supplement_with_regex(
     text: str,
     existing_spans: list[PIISpan],
-    categories: frozenset[PIICategory] = _REGEX_HIGH_VALUE_CATEGORIES,
+    categories: frozenset[PIICategory] | None = None,
 ) -> list[PIISpan]:
     """Return regex-detected spans that don't overlap any existing span.
 
@@ -99,6 +123,10 @@ def supplement_with_regex(
     """
     if not text:
         return []
+    if categories is None:
+        # Re-evaluate from env on every call so PIIR_REGEX_USERNAME toggles
+        # take effect without a process restart.
+        categories = _high_value_categories()
     existing_ranges = [(s.start, s.end) for s in existing_spans]
     extra: list[PIISpan] = []
     for category, start, end, value in regex_first_pass(text):
