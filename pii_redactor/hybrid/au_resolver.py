@@ -223,14 +223,29 @@ def _try_checksum_validators(value: str) -> tuple[PIICategory, bool] | None:
     return None
 
 
+def _try_explicit_prefix_structural(value: str) -> PIICategory | None:
+    """Match structurally-tagged identifiers whose prefix is unambiguous.
+
+    These are values where the prefix word/letters carry the category
+    without further checksum work — they MUST be tried before the
+    checksum dispatch, because the trailing digit run can satisfy a
+    weaker checksum (e.g. ``MRN-686040`` → 6-digit BSB shape).
+    """
+    stripped = value.strip()
+    # MRN with explicit prefix: "MRN-12345", "MRN_4567", "MRN:9999"
+    if re.match(r"^MRN[-_:]\s?\w", stripped, re.IGNORECASE):
+        return PIICategory.MEDICAL_RECORD_NUMBER
+    # URN with explicit prefix
+    if re.match(r"^UR[N]?[-_:]\s?\w", stripped, re.IGNORECASE):
+        return PIICategory.MEDICAL_RECORD_NUMBER
+    return None
+
+
 def _try_structural_matchers(value: str) -> PIICategory | None:
     """Match shape-only (non-checksum) AU identifiers."""
     stripped = value.strip()
     if _IHI_RE.match(stripped):
         return PIICategory.HEALTHCARE_IDENTIFIER
-    # MRN with explicit prefix: "MRN-12345", "MRN_4567", "MRN:9999"
-    if re.match(r"^MRN[-_:]\s?\w", stripped, re.IGNORECASE):
-        return PIICategory.MEDICAL_RECORD_NUMBER
     if _CRN_RE.match(stripped):
         return PIICategory.CRN
     if _PASSPORT_RE.match(stripped):
@@ -281,12 +296,19 @@ def resolve_one(
         # MRN, IHI, passport), trust the label.
         return label_hint, validator_passed
 
-    # 2. Checksum-validated AU identifiers
+    # 2a. Explicit-prefix structural identifiers — must precede the checksum
+    # pass because the digit-only suffix of, say, "MRN-686040" could otherwise
+    # be claimed by the BSB format validator (6 digits = BSB shape).
+    explicit_struct = _try_explicit_prefix_structural(value)
+    if explicit_struct is not None:
+        return explicit_struct, None
+
+    # 2b. Checksum-validated AU identifiers
     checksum_hit = _try_checksum_validators(value)
     if checksum_hit is not None:
         return checksum_hit
 
-    # 3. Structural-only AU identifiers
+    # 3. Remaining structural-only AU identifiers (no explicit prefix)
     structural_hit = _try_structural_matchers(value)
     if structural_hit is not None:
         return structural_hit, None

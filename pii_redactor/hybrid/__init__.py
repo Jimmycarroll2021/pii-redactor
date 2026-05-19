@@ -14,12 +14,14 @@ existing Australian validators + regex layer on top to:
 Selectable via PIIR_BACKEND=transformers_au.
 """
 from .au_resolver import resolve_account_numbers
+from .llama_pass import LlamaNERPass
 from .openai_backend import OpenAIPrivacyFilter
 from .pipeline import HybridDetector, build_hybrid_pipeline
 from .regex_supplement import supplement_with_regex
 
 __all__ = [
     "HybridDetector",
+    "LlamaNERPass",
     "OpenAIPrivacyFilter",
     "build_hybrid_pipeline",
     "resolve_account_numbers",

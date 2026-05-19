@@ -22,22 +22,45 @@ from ..models import PIISpan
 from ..pipeline import Pipeline
 from ..redactor import Redactor
 from .au_resolver import resolve_account_numbers
+from .llama_pass import LlamaNERPass
 from .openai_backend import OpenAIPrivacyFilter
 from .regex_supplement import supplement_with_regex
 
 logger = logging.getLogger(__name__)
 
 
+def _env_truthy(name: str, default: bool = True) -> bool:
+    raw = __import__("os").environ.get(name)
+    if raw is None:
+        return default
+    return raw.lower() in {"1", "true", "yes", "on"}
+
+
 class HybridDetector:
-    """End-to-end PII detector using OpenAI Privacy Filter + AU validators."""
+    """End-to-end PII detector using OpenAI Privacy Filter + AU validators.
+
+    Phase 2.x: optional parallel llama3.1:8b narrative NER pass. Both NERs
+    run on the GPU; the union of their spans flows through the AU
+    resolver so any narrative PII (names, addresses, DOBs) the calibrated
+    OpenAI head missed is recovered from llama's prompt-driven extraction.
+    """
 
     def __init__(
         self,
         openai_backend: OpenAIPrivacyFilter | None = None,
         use_regex_supplement: bool = True,
+        llama_pass: LlamaNERPass | None = None,
+        use_llama_pass: bool | None = None,
     ):
         self.openai = openai_backend or OpenAIPrivacyFilter()
         self.use_regex_supplement = use_regex_supplement
+        if use_llama_pass is None:
+            use_llama_pass = _env_truthy("PIIR_LLAMA_ENABLED", True)
+        self.use_llama_pass = use_llama_pass
+        if self.use_llama_pass:
+            self.llama = llama_pass or LlamaNERPass()
+        else:
+            self.llama = None
 
     # The interface PIIDetector exposes is .detect(text) -> list[PIISpan].
     # We mirror that exactly so HybridDetector slots into Pipeline unchanged.
@@ -46,8 +69,17 @@ class HybridDetector:
         if not text:
             return []
 
-        # 1. First-pass NER on GPU
-        raw_spans = self.openai.predict(text)
+        # 1a. Calibrated NER pass (GPU, openai/privacy-filter).
+        raw_spans = list(self.openai.predict(text))
+
+        # 1b. Narrative NER pass (GPU, llama3.1:8b via Ollama). Soft-fails to
+        # empty list when Ollama is unreachable or disabled; we union both
+        # passes' raw spans before resolution.
+        if self.llama is not None:
+            try:
+                raw_spans.extend(self.llama.predict(text))
+            except Exception as exc:  # noqa: BLE001
+                logger.warning("llama narrative pass failed: %s", exc)
 
         # 2. Resolve OpenAI's account_number / secret into precise AU
         # sub-categories using checksum validators where applicable.
@@ -128,10 +160,17 @@ class HybridDetector:
 
     @property
     def name(self) -> str:
+        if self.llama is not None:
+            return f"hybrid({self.openai.name}+{self.llama.name})"
         return f"hybrid({self.openai.name})"
 
     def warmup(self) -> None:
         self.openai.warmup()
+        if self.llama is not None:
+            try:
+                self.llama.warmup()
+            except Exception as exc:  # noqa: BLE001
+                logger.warning("llama narrative pass warmup failed: %s", exc)
 
 
 def build_hybrid_pipeline(
@@ -139,6 +178,8 @@ def build_hybrid_pipeline(
     openai_backend: OpenAIPrivacyFilter | None = None,
     use_regex_supplement: bool = True,
     warmup: bool = True,
+    llama_pass: LlamaNERPass | None = None,
+    use_llama_pass: bool | None = None,
 ) -> Pipeline:
     """Construct a Pipeline that uses the hybrid detector.
 
@@ -150,6 +191,8 @@ def build_hybrid_pipeline(
     detector = HybridDetector(
         openai_backend=backend,
         use_regex_supplement=use_regex_supplement,
+        llama_pass=llama_pass,
+        use_llama_pass=use_llama_pass,
     )
     if warmup:
         try:

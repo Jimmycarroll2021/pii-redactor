@@ -219,7 +219,7 @@ def test_hybrid_detector_resolves_tfn_from_openai_account_number():
     start = text.index("123 456 782")
     end = start + len("123 456 782")
     backend = FakeOpenAIBackend(canned=[("account_number", start, end, "123 456 782")])
-    detector = HybridDetector(openai_backend=backend)
+    detector = HybridDetector(openai_backend=backend, use_llama_pass=False)
     spans = detector.detect(text)
     cats = [s.category for s in spans]
     assert PIICategory.TFN in cats
@@ -232,7 +232,7 @@ def test_hybrid_detector_pipeline_redacts_text(tmp_path: Path):
     backend = FakeOpenAIBackend(canned=[
         ("account_number", tfn_start, tfn_end, "123 456 782"),
     ])
-    detector = HybridDetector(openai_backend=backend)
+    detector = HybridDetector(openai_backend=backend, use_llama_pass=False)
     pipeline = Pipeline(
         detector=detector,  # type: ignore[arg-type]
         redactor=Redactor(style="numbered"),
@@ -255,7 +255,11 @@ def test_hybrid_detector_invalid_tfn_label_keeps_tfn_category_marks_invalid():
     start = text.index("999999999")
     end = start + 9
     backend = FakeOpenAIBackend(canned=[("account_number", start, end, "999999999")])
-    detector = HybridDetector(openai_backend=backend, use_regex_supplement=False)
+    detector = HybridDetector(
+        openai_backend=backend,
+        use_regex_supplement=False,
+        use_llama_pass=False,
+    )
     spans = detector.detect(text)
     tfn_spans = [s for s in spans if s.category == PIICategory.TFN]
     assert len(tfn_spans) == 1
@@ -264,7 +268,7 @@ def test_hybrid_detector_invalid_tfn_label_keeps_tfn_category_marks_invalid():
 
 def test_hybrid_detector_handles_empty_text():
     backend = FakeOpenAIBackend(canned=[])
-    detector = HybridDetector(openai_backend=backend)
+    detector = HybridDetector(openai_backend=backend, use_llama_pass=False)
     assert detector.detect("") == []
 
 
@@ -289,6 +293,107 @@ def test_openai_backend_honours_score_threshold(monkeypatch):
     out = backend.predict("Jane Doe.")
     assert len(out) == 1
     assert out[0][0] == "private_person"
+
+
+class _FakeLlamaPass:
+    """Stand-in for LlamaNERPass that returns canned predictions."""
+
+    def __init__(self, canned: list[tuple[str, int, int, str]]):
+        self._canned = canned
+        self.name = "fake-llama"
+
+    def predict(self, text):  # noqa: ARG002
+        return list(self._canned)
+
+    def warmup(self):
+        pass
+
+
+def test_hybrid_detector_unions_openai_and_llama_spans():
+    """Phase 2.x: llama pass recovers PII OpenAI's calibrated head missed."""
+    text = "Patient Daniel Lee, DOB 18/03/1986. MRN-686040."
+    openai_canned = [
+        # OpenAI catches the date but misses the name (calibrated head fault)
+        ("private_date", text.index("18/03/1986"), text.index("18/03/1986") + 10, "18/03/1986"),
+    ]
+    llama_canned = [
+        # llama catches the name + the MRN with full label
+        ("private_person", text.index("Daniel Lee"), text.index("Daniel Lee") + 10, "Daniel Lee"),
+        ("account_number", text.index("MRN-686040"), text.index("MRN-686040") + 10, "MRN-686040"),
+    ]
+    openai_backend = FakeOpenAIBackend(canned=openai_canned)
+    llama_backend = _FakeLlamaPass(canned=llama_canned)
+    detector = HybridDetector(
+        openai_backend=openai_backend,
+        llama_pass=llama_backend,
+        use_llama_pass=True,
+        use_regex_supplement=False,
+    )
+    spans = detector.detect(text)
+    cats = {s.category.value for s in spans}
+    assert "name" in cats
+    assert "date_of_birth" in cats or "date" in cats
+    assert "medical_record_number" in cats
+
+
+def test_hybrid_detector_llama_disabled_falls_back_to_openai_only():
+    """use_llama_pass=False reproduces v0.2.0 behaviour."""
+    text = "Daniel Lee."
+    openai_canned = [
+        ("private_person", 0, 10, "Daniel Lee"),
+    ]
+    detector = HybridDetector(
+        openai_backend=FakeOpenAIBackend(canned=openai_canned),
+        use_llama_pass=False,
+        use_regex_supplement=False,
+    )
+    spans = detector.detect(text)
+    assert len(spans) == 1
+    assert spans[0].category == PIICategory.NAME
+
+
+def test_hybrid_detector_name_includes_both_backends():
+    detector = HybridDetector(
+        openai_backend=FakeOpenAIBackend(canned=[]),
+        llama_pass=_FakeLlamaPass(canned=[]),
+        use_llama_pass=True,
+    )
+    assert "fake-llama" in detector.name
+
+
+def test_llama_pass_disabled_returns_empty(monkeypatch):
+    """PIIR_LLAMA_ENABLED=false → no calls, empty list."""
+    from pii_redactor.hybrid.llama_pass import LlamaNERPass
+
+    monkeypatch.setenv("PIIR_LLAMA_ENABLED", "false")
+    pass_ = LlamaNERPass()
+    assert pass_.predict("Some text with Daniel Lee.") == []
+
+
+def test_llama_pass_skips_oversized_doc(monkeypatch):
+    """Documents larger than PIIR_LLAMA_MAX_CHARS are skipped (latency budget)."""
+    from pii_redactor.hybrid.llama_pass import LlamaNERPass
+
+    monkeypatch.setenv("PIIR_LLAMA_ENABLED", "true")
+    pass_ = LlamaNERPass(max_chars=100)
+    huge = "x" * 5000
+    assert pass_.predict(huge) == []
+
+
+def test_llama_pass_soft_fails_on_client_error(monkeypatch):
+    """A throwing OllamaClient must not surface — return [] instead."""
+    from pii_redactor.hybrid.llama_pass import LlamaNERPass
+
+    monkeypatch.delenv("PIIR_LLAMA_ENABLED", raising=False)
+    pass_ = LlamaNERPass(base_url="http://127.0.0.1:1")  # unreachable
+    pass_._ensure_loaded()
+
+    class _Boom:
+        def complete(self, **kw):  # noqa: ARG002
+            raise RuntimeError("connection refused")
+
+    pass_._client = _Boom()
+    assert pass_.predict("Daniel Lee.") == []
 
 
 def test_openai_backend_default_threshold_keeps_all(monkeypatch):
