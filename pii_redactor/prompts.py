@@ -30,7 +30,14 @@ Rules:
   it as "generic_id".
 - Extract the exact PII substring only. Do not include surrounding punctuation,
   quotes, suffix letters, prose, or JSON syntax around the value.
-- Use "name" for personal names of individuals (not organisation names).
+- Use "name" for personal names of individuals (not organisation names). \
+This INCLUDES clinical / professional titles in front of a name. Treat each \
+of these patterns as ONE single "name" PII value, including the title and any \
+trailing period: \
+"Dr. Smith", "Prof. Williams", "A/Prof. Robinson", "Mr. Thomas", "Ms. Martinez", \
+"Mrs. Jones", "Sir John Smith", "Dame Helen Mirren". Always extract the FULL \
+"<title>. <surname>" or "<title> <given> <surname>" span as a single name — do \
+NOT emit the title and the surname as separate entries.
 - Use "address" for ANY string that identifies a location: postal addresses, \
 street addresses, suburbs, localities, towns, cities, postcodes, and \
 location-only descriptors. Specifically:
@@ -117,7 +124,25 @@ Response:
 {{"category": "phone", "value": "+1-869-341-9301x7005"}}, \
 {{"category": "address", "value": "Suite 378, Yolanda Mountain, Burkeberg"}}]}}
 
-Example 3 (bare suburb / labelled postcode / no-number street as addresses):
+Example 3 (clinical titles + medical record + IHI):
+
+Text:
+\"\"\"
+OUTPATIENT CLINIC NOTE — 16/03/2026
+Reviewed Jackson Nguyen, DOB 01/06/1969, record MRN-153084 (clinician A/Prof. Robinson). \
+Patient reachable on (03) 8268 5228. IHI 8003 1857 2352 5708.
+\"\"\"
+
+Response:
+{{"pii": [{{"category": "date", "value": "16/03/2026"}}, \
+{{"category": "name", "value": "Jackson Nguyen"}}, \
+{{"category": "date_of_birth", "value": "01/06/1969"}}, \
+{{"category": "medical_record_number", "value": "MRN-153084"}}, \
+{{"category": "name", "value": "A/Prof. Robinson"}}, \
+{{"category": "phone", "value": "(03) 8268 5228"}}, \
+{{"category": "healthcare_identifier", "value": "8003 1857 2352 5708"}}]}}
+
+Example 4 (bare suburb / labelled postcode / no-number street as addresses):
 
 Text:
 \"\"\"
