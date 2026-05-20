@@ -30,12 +30,12 @@ Sits between a data source and an ingestion target in your pipeline. Documents c
 
 ## Why this design
 
-Three things from the paper that make the approach work, and one we added:
+Four things make this approach work for production AU government + clinical workloads:
 
-1. **Zero-shot LLM detection.** Measured on this codebase (2026-05-18): Llama-3.1-8B-Instruct via Ollama hits **99.58% sensitivity on the 100-doc Gretel PII fixture** (1 name leak / 237 checked) and **100.00% sensitivity on the 50-doc synthetic medical fixture** (0 leaks / 345 checked, all 9 categories at 100% recall). See `.planning/PASS-GATE.md` for run details and per-category breakdown. Wiest et al. reported 99.4% sensitivity on Llama-3-8B for the LLM-Anonymizer paper; this fork meets or beats that bar on both AU-government and synthetic-medical fixtures.
-2. **Grammar-constrained output.** llama.cpp's GBNF support means the model literally cannot emit malformed JSON. No `try/except json.JSONDecodeError` paranoia.
-3. **Local inference.** No data leaves your boundary. Important for OFFICIAL: Sensitive and PROTECTED data.
-4. **Australian checksum validation** (our addition). The LLM is tuned for recall; checksum validators add precision. A nine-digit number that looks like a TFN but fails the mod-11 weighted sum gets dropped. This filters most LLM false positives on numeric identifiers.
+1. **LoRA-tuned token classifier on `openai/privacy-filter`** (the default in v0.4.x). 1.5B-param / 50M-active MoE token classifier, fine-tuned on a ~55k-doc AU-synthetic corpus covering all 11 AU regulatory categories. Wiest-equivalent recall on AU clinical narratives with 5-6 docs/sec inference on a single RTX 4090. The LoRA adapter is published separately at [`JimmyBhoy/redact-au-1b`](https://huggingface.co/JimmyBhoy/redact-au-1b) (Apache 2.0).
+2. **Two-tier product.** Default tier (Tier 1) drops the slow narrative-NER pass for ≥3 d/s throughput on AU compliance workloads. Opt-in Tier 2 (`PIIR_LLAMA_BACKEND=vllm`) layers a Llama-3.1-8B narrative pass on top for general-PII workloads at lower throughput but higher recall on non-AU formats.
+3. **Local inference.** No data leaves your boundary. Important for OFFICIAL / OFFICIAL: Sensitive deployments. PROTECTED requires IRAP (see `grants/IRAP-scoping.md` in the companion `redact-au` repo for the assessment path).
+4. **Australian checksum validation** (our addition). The token classifier is tuned for recall; downstream validators add precision. A nine-digit number that looks like a TFN but fails the mod-11 weighted sum gets dropped. Same for ABN (mod-89), ACN, Medicare. This filters most false positives on numeric identifiers.
 
 ## Detected categories
 
@@ -58,20 +58,38 @@ Three things from the paper that make the approach work, and one we added:
 | `passport` | none | Australian passport pattern |
 | `bsb_account` | format | 6-digit BSB + account |
 | `centrelink_crn` | none | Customer Reference Number |
+| `organisation` | gazetteer + suffix pattern | Companies (Pty Ltd, Limited), gov agencies, hospitals, universities, banks, law firms (v0.4.1+) |
+| `location` | gazetteer + state-abbrev + postcode | Suburbs, states, postcodes, regions — standalone references (v0.4.1+) |
 | `url`, `ip_address` | regex | Standard formats |
 
 Validators that exist will drop invalid detections from the output. The validation result is preserved on each span so downstream consumers can see what was confirmed vs. flagged.
 
-## Measured performance (2026-05-18)
+## Measured performance (2026-05-20)
 
-| Fixture | Model | Backend | Docs | Sensitivity | Leaks |
-|---------|-------|---------|------|-------------|-------|
-| Gretel-100 (`gretel-pii-masking-en-500`, first 100) | `llama3.1:8b` (Q4_K_M) | Ollama, CPU | 100 | **99.58%** | 1 / 237 (1 name) |
-| Synthetic-medical-50 (`synthetic-medical-50`) | `llama3.1:8b` (Q4_K_M) | Ollama, CPU | 50 | **100.00%** | 0 / 345 |
+**v0.4.1 frozen bench — RTX 4090, concurrent×8 HTTP:**
 
-Both numbers clear the Wiest et al. 99.4% sensitivity bar. Full per-category recall, raw `summary.json`, and `results.jsonl` files are committed under `scale-tests/runs/20260518-us003b-ollama-llama31-gretel100-prompt-v3/` and `scale-tests/runs/20260518-us006-ollama-llama31-medical50/`. The reproducible synthetic-medical fixture generator lives at `scale-tests/generate_synthetic_medical.py` (seeded; 0 spend; 15 / 50 documents include Medicare or IHI to stay within product scope).
+| Fixture | Tier 1 (default, LoRA, llama off) | Tier 2 (opt-in, +llama vLLM) | Legacy CPU baseline (v0.1.2 Ollama) |
+|---|---|---|---|
+| Gretel-100 sensitivity | **93.67%** (2 leaks) | **97.89%** (0 leaks) | **99.58%** (1 leak) |
+| Medical-50 sensitivity | **99.71%** (0 leaks) | **100.00%** (0 leaks) | **100.00%** (0 leaks) |
+| Throughput (docs/sec) | **5-6** | 1.4 | 0.07 |
+| Mean latency / doc | ~150-300 ms | ~700 ms | 13.8-20.4 s |
+| Hardware | RTX 4090 (24 GB) | RTX 4090 + vLLM | Ryzen 7 7840HS CPU |
 
-Hardware: AMD Ryzen 7 7840HS, CPU-only inference. Mean latency 13.8 s/doc (Gretel) and 20.4 s/doc (medical narratives). The pass gate, model selection, prompt edits, and per-leak diagnostics are written up in `.planning/PASS-GATE.md`.
+All three tiers clear the Wiest et al. 99.4% sensitivity bar on the medical fixture (Wiest target = 99.4%; we hit 99.71% / 100% / 100%). The Gretel-100 fixture covers global+social PII broader than our AU-government wedge — Tier 2 closes that gap when the workload includes international phone formats, social handles, or foreign locality names.
+
+**Multi-sector v0.4.1 head-to-head** (920 docs across federal-gov / state-health / legal / medtech, vs Microsoft Presidio):
+
+| Sector | redact-au v0.4.1 (Tier 1) | Microsoft Presidio + AU regex | Δ |
+|---|---|---|---|
+| federal-gov-official | **93.15%** | 78.32% | **+14.83 pp** |
+| state-health-hospitals | **93.55%** | 86.05% | **+7.50 pp** |
+| legal-small-mid | **85.75%** | 69.92% | **+15.83 pp** |
+| medtech-health-ai | **91.57%** | 77.72% | **+13.85 pp** |
+
+100% recall on AU regulatory IDs (TFN/ABN/ACN/Medicare/IHI/MRN/BSB/Centrelink-CRN) with checksum validation across all four sectors. Per-category breakdown + leak taxonomy in the companion `redact-au` repo's `benchmarks/` directory.
+
+Per-leak diagnostics, severity grading, and full per-category recall are in `CHANGELOG.md` (v0.4.0 + v0.4.1) and the v0.0.x → v0.4.1 history under `.planning/`.
 
 ## Three integration paths
 
@@ -135,11 +153,17 @@ All configuration via environment variables prefixed `PIIR_`. See `.env.example`
 
 | Variable | Default | Purpose |
 |----------|---------|---------|
-| `PIIR_BACKEND` | `mock` | `mock` \| `llama_cpp` \| `hf` \| `ollama` |
-| `PIIR_LLAMA_CPP_URL` | `http://localhost:8080` | llama.cpp server endpoint |
-| `PIIR_HF_TOKEN` | — | HF Inference API token |
+| `PIIR_BACKEND` | `transformers_au_finetuned` | `mock` \| `llama_cpp` \| `hf` \| `ollama` \| `transformers_au` \| `transformers_au_finetuned` |
+| `PIIR_LORA_ADAPTER` | `JimmyBhoy/redact-au-1b` | HF Hub repo or local path to LoRA adapter (only for `transformers_au_finetuned`) |
+| `PIIR_LLAMA_BACKEND` | `disabled` | `disabled` \| `vllm` \| `ollama` \| `auto` — Tier 2 narrative-NER pass |
+| `PIIR_LLAMA_GATE` | `always` | `always` \| `confidence` \| `never` — when Tier 2 is enabled, gate per-doc |
+| `PIIR_VLLM_URL` | `http://localhost:11500` | vLLM OpenAI-compatible endpoint |
 | `PIIR_OLLAMA_URL` | `http://localhost:11434` | Ollama server endpoint |
-| `PIIR_OLLAMA_MODEL` | `llama3` | Ollama model name (must be pulled first) |
+| `PIIR_LLAMA_CPP_URL` | `http://localhost:8080` | llama.cpp server endpoint |
+| `PIIR_HF_TOKEN` | — | HF Inference API token (for `hf` backend) |
+| `PIIR_REGEX_USERNAME` | `false` | Toggle username regex (off by default — false positives risk) |
+| `PIIR_REGEX_ORGANISATION` | `true` | Toggle organisation gazetteer + suffix recogniser (v0.4.1+) |
+| `PIIR_REGEX_LOCATION` | `true` | Toggle location gazetteer + state/postcode recogniser (v0.4.1+) |
 | `PIIR_API_KEY` | — | FastAPI auth (unset = open) |
 | `PIIR_AUDIT_KEY` | — | Fernet key for audit encryption |
 | `PIIR_PLACEHOLDER_STYLE` | `numbered` | `numbered` \| `category` \| `asterisk` |
@@ -199,27 +223,37 @@ This is not a substitute for a legal review. It's infrastructure that makes APP-
 pytest tests/ -v
 ```
 
-Current state: 58 tests, all passing. Validators exercised against published test values from ATO (TFN, ABN), ASIC (ACN), and synthetically valid Medicare numbers. Pipeline tests use the `MockClient` backend (regex-only) so they run offline without an LLM. Regression tests cover all bugs fixed in v0.1.1 and v0.1.2 (phone format, BSB false positives, phone-in-ABN with boundary-guarded alternations).
+Current state: **137 tests, all passing** (v0.4.1). Validators exercised against published test values from ATO (TFN, ABN), ASIC (ACN), and synthetically valid Medicare numbers. Pipeline tests use the `MockClient` backend (regex-only) so they run offline without an LLM. Regression coverage spans every release: v0.1.x phone/BSB/ABN edge cases, v0.2.x hybrid pipeline integration, v0.3.x vLLM + concurrency, v0.4.x LoRA backend + org/location recognisers + llama-disabled default + fallback-chain.
 
 ## Architecture
 
 ```
 pii_redactor/
-├── models.py        # PIICategory, PIISpan, RedactionResult
-├── validators.py    # AU checksum algorithms (TFN, ABN, ACN, Medicare)
-├── prompts.py       # Zero-shot prompt templates
-├── grammar.py       # GBNF grammar for llama.cpp constrained sampling
-├── llm_client.py    # Backends: LlamaCpp, HFInference, Ollama, Mock
-├── detector.py      # chunk → prompt → parse → validate → merge
-├── redactor.py      # Apply placeholders, three styles
-├── audit.py         # Fernet-encrypted JSONL audit
-├── pipeline.py      # Public API: build_pipeline(), process_document()
-└── config.py        # env-driven Pydantic settings
+├── models.py                # PIICategory (+ ORGANISATION, LOCATION since v0.4.1), PIISpan, RedactionResult
+├── validators.py            # AU checksum algorithms (TFN, ABN, ACN, Medicare)
+├── prompts.py               # Zero-shot prompt templates (legacy llama path)
+├── grammar.py               # GBNF grammar for llama.cpp constrained sampling
+├── llm_client.py            # Backends: LlamaCpp, HFInference, Ollama, Mock
+├── detector.py              # chunk → prompt → parse → validate → merge
+├── redactor.py              # Apply placeholders, three styles
+├── audit.py                 # Fernet-encrypted JSONL audit
+├── pipeline.py              # Public API: build_pipeline(), process_document()
+├── config.py                # env-driven Pydantic settings
+├── data/gazetteers/         # AU org + suburb + postcode + state gazetteers (v0.4.1+)
+└── hybrid/                  # Hybrid pipeline (v0.2.x+)
+    ├── openai_backend.py    # openai/privacy-filter token-classifier wrapper
+    ├── finetuned_backend.py # PEFT-loaded LoRA adapter on openai/privacy-filter (v0.4.x+)
+    ├── llama_pass.py        # Ollama Llama-3.1-8B narrative pass (Tier 2)
+    ├── vllm_pass.py         # vLLM AWQ-Marlin narrative pass (Tier 2, RTX)
+    ├── au_resolver.py       # Checksum + label-prior resolution for AU IDs
+    ├── au_org_loc.py        # Organisation + location recognisers (v0.4.1+)
+    ├── regex_supplement.py  # Username + AU phone/address fallback
+    └── pipeline.py          # HybridDetector orchestrator + tier selection
 
-api/main.py          # FastAPI HTTP service
-app.py               # Gradio Space entry point
-tests/               # Pytest suite, mock backend
-docker/              # Dockerfile + compose stack with llama-server
+api/main.py                  # FastAPI HTTP service
+app.py                       # Gradio Space entry point
+tests/                       # Pytest suite (137 tests as of v0.4.1)
+docker/                      # Dockerfile + compose stack
 ```
 
 ## Source

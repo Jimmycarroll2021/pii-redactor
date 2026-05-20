@@ -1,5 +1,30 @@
 # Changelog
 
+## [0.4.2] — 2026-05-20
+
+### Changed — README + PyPI description refresh (no functional changes)
+- README "Why this design" section reframed around the two-tier
+  (LoRA default / Llama opt-in) v0.4.x architecture instead of the
+  v0.1.x single-Llama story.
+- "Measured performance" section replaced with v0.4.1 frozen-bench
+  numbers (Tier 1 LoRA / Tier 2 +llama / legacy CPU baseline columns)
+  plus the multi-sector head-to-head vs Microsoft Presidio.
+- "Detected categories" table extended with `organisation` and
+  `location` (introduced in v0.4.1).
+- "Configuration" env-var table updated with the v0.4.x knobs
+  (`PIIR_LORA_ADAPTER`, `PIIR_LLAMA_BACKEND`, `PIIR_LLAMA_GATE`,
+  `PIIR_VLLM_URL`, `PIIR_REGEX_ORGANISATION`, `PIIR_REGEX_LOCATION`)
+  and the new defaults (`PIIR_BACKEND=transformers_au_finetuned`,
+  `PIIR_LLAMA_BACKEND=disabled`).
+- "Testing" badge bumped from 58 → 137.
+- "Architecture" file-tree extended with `hybrid/` subpackage +
+  `data/gazetteers/`.
+
+No code, model, or schema changes. The v0.4.1 wheel that's currently
+on PyPI shipped with a stale README baked into the metadata; this
+release exists solely to refresh what PyPI displays. Functional
+behaviour is byte-identical to v0.4.1.
+
 ## [0.4.1] — 2026-05-20
 
 ### Added — AU organisation + location recognisers (Phase 5)
