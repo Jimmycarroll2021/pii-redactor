@@ -1225,3 +1225,181 @@ def test_org_loc_no_double_tag_with_address():
             assert not (sp.start < addr_span.end and addr_span.start < sp.end), (
                 f"Location {sp.value!r} double-tags inside address span"
             )
+
+
+# ---------------------------------------------------------------------------
+# v0.4.3 — Phase 5.1 rules-only extension (Path B)
+# ---------------------------------------------------------------------------
+def test_clinic_suffix_match():
+    """Medical Centre / Clinic suffix tags as ORGANISATION."""
+    from pii_redactor.hybrid.au_org_loc import AUOrganisationRecogniser
+
+    rec = AUOrganisationRecogniser()
+    spans = rec.recognise("She was seen at Bayside Medical Centre last week.")
+    assert any(
+        s.category == PIICategory.ORGANISATION
+        and "Bayside Medical Centre" in (s.value or "")
+        for s in spans
+    ), f"Got: {[(s.value, s.category) for s in spans]}"
+
+
+def test_legal_firm_suffix_match():
+    """Suffix tokens 'Lawyers' / 'Solicitors' / '& Partners' tag as ORGANISATION."""
+    from pii_redactor.hybrid.au_org_loc import AUOrganisationRecogniser
+
+    rec = AUOrganisationRecogniser()
+    spans1 = rec.recognise("Engaged Smith Brown Lawyers to file the claim.")
+    assert any(
+        s.category == PIICategory.ORGANISATION
+        and "Lawyers" in (s.value or "")
+        for s in spans1
+    ), f"Got: {[(s.value, s.category) for s in spans1]}"
+
+    spans2 = rec.recognise("Per advice from Jones & Partners regarding the matter.")
+    assert any(
+        s.category == PIICategory.ORGANISATION
+        and "Partners" in (s.value or "")
+        for s in spans2
+    ), f"Got: {[(s.value, s.category) for s in spans2]}"
+
+
+def test_informal_location_greater_sydney():
+    """'Greater Sydney' tags as LOCATION (informal region)."""
+    from pii_redactor.hybrid.au_org_loc import AULocationRecogniser
+
+    rec = AULocationRecogniser()
+    spans = rec.recognise("Cases reported across Greater Sydney rose this week.")
+    assert any(
+        s.category == PIICategory.LOCATION
+        and "Greater Sydney" in (s.value or "")
+        for s in spans
+    ), f"Got: {[(s.value, s.category) for s in spans]}"
+
+
+def test_informal_location_inner_west():
+    """'Inner West' tags as LOCATION even without a trailing city anchor."""
+    from pii_redactor.hybrid.au_org_loc import AULocationRecogniser
+
+    rec = AULocationRecogniser()
+    spans = rec.recognise("The Inner West has seen population growth.")
+    assert any(
+        s.category == PIICategory.LOCATION
+        and "Inner West" in (s.value or "")
+        for s in spans
+    ), f"Got: {[(s.value, s.category) for s in spans]}"
+
+
+def test_informal_location_regional():
+    """Named AU regions ('the Yarra Valley', 'Pilbara') tag as LOCATION."""
+    from pii_redactor.hybrid.au_org_loc import AULocationRecogniser
+
+    rec = AULocationRecogniser()
+    spans = rec.recognise(
+        "Travelled to the Yarra Valley and then up to the Pilbara."
+    )
+    values = {(s.value or "").lower() for s in spans
+              if s.category == PIICategory.LOCATION}
+    assert any("yarra valley" in v for v in values), values
+    assert any("pilbara" in v for v in values), values
+
+
+def test_address_vs_location_disambiguation_full_address():
+    """Full street address resolves to ADDRESS, not LOCATION."""
+    from pii_redactor.hybrid.au_resolver import (
+        _disambiguate_address_vs_location,
+    )
+
+    assert _disambiguate_address_vs_location(
+        "23 Collins Street, Melbourne VIC 3000"
+    ) == "address"
+    assert _disambiguate_address_vs_location(
+        "77 Smith Street, Wollongong"
+    ) == "address"
+    assert _disambiguate_address_vs_location(
+        "1/45 Park Road, Brunswick"
+    ) == "address"
+
+
+def test_address_vs_location_disambiguation_standalone_suburb():
+    """Standalone suburb / region / state resolves to LOCATION."""
+    from pii_redactor.hybrid.au_resolver import (
+        _disambiguate_address_vs_location,
+    )
+
+    assert _disambiguate_address_vs_location("Melbourne") == "location"
+    assert _disambiguate_address_vs_location("Sydney") == "location"
+    assert _disambiguate_address_vs_location("Greater Sydney") == "location"
+    assert _disambiguate_address_vs_location("Inner West") == "location"
+    assert _disambiguate_address_vs_location("the Yarra Valley") == "location"
+    assert _disambiguate_address_vs_location("NSW") == "location"
+    assert _disambiguate_address_vs_location("Northern Territory") == "location"
+
+
+def test_address_vs_location_disambiguation_with_postcode_no_street():
+    """Postcode-only spans tag as ADDRESS (postcode-bound), per spec."""
+    from pii_redactor.hybrid.au_resolver import (
+        _disambiguate_address_vs_location,
+    )
+
+    # Postcode prefix is still an address binding — keep as ADDRESS
+    # so downstream policy redacts the postcode.
+    assert _disambiguate_address_vs_location("3000 Melbourne") == "address"
+    assert _disambiguate_address_vs_location("Melbourne VIC 3000") == "address"
+
+
+def test_address_vs_location_disambiguation_po_box():
+    """PO Box / GPO Box resolves to ADDRESS."""
+    from pii_redactor.hybrid.au_resolver import (
+        _disambiguate_address_vs_location,
+    )
+
+    assert _disambiguate_address_vs_location(
+        "PO Box 123, Sydney NSW 2000"
+    ) == "address"
+    assert _disambiguate_address_vs_location(
+        "GPO Box 9990, Melbourne VIC 3001"
+    ) == "address"
+    assert _disambiguate_address_vs_location(
+        "Locked Bag 42, Parramatta"
+    ) == "address"
+
+
+def test_address_vs_location_disambiguation_adversarial():
+    """Adversarial cases: 'Smith lives in Sydney' → location only."""
+    from pii_redactor.hybrid.au_resolver import (
+        _disambiguate_address_vs_location,
+    )
+
+    # No street component → location
+    assert _disambiguate_address_vs_location("Sydney") == "location"
+    # Street + suburb → address
+    assert _disambiguate_address_vs_location(
+        "77 Smith Street, Wollongong"
+    ) == "address"
+
+
+def test_au_resolver_post_processes_private_address_label():
+    """resolve_account_numbers re-tags standalone-location private_address
+    spans as LOCATION while keeping street-bearing ones as ADDRESS."""
+    from pii_redactor.hybrid.au_resolver import resolve_account_numbers
+
+    text = "Located in Melbourne. Send mail to 23 Collins Street, Melbourne VIC 3000."
+    candidates = [
+        ("private_address",
+         text.index("Melbourne"),
+         text.index("Melbourne") + len("Melbourne"),
+         "Melbourne"),
+        ("private_address",
+         text.index("23 Collins Street, Melbourne VIC 3000"),
+         text.index("23 Collins Street, Melbourne VIC 3000")
+         + len("23 Collins Street, Melbourne VIC 3000"),
+         "23 Collins Street, Melbourne VIC 3000"),
+    ]
+    spans = resolve_account_numbers(candidates, text)
+    cats = [s.category for s in spans]
+    assert PIICategory.LOCATION in cats, (
+        f"Standalone 'Melbourne' should be LOCATION; got {cats}"
+    )
+    assert PIICategory.ADDRESS in cats, (
+        f"Full street address should be ADDRESS; got {cats}"
+    )
