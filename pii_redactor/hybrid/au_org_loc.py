@@ -164,22 +164,38 @@ AU_STATE_CONTEXT = (
 # Companies with corporate suffixes — high precision.
 # v0.4.3: extend the suffix vocabulary to cover medical, legal, and community
 # organisations the Phase 4 sector bench was missing (clinics, law firms,
-# cooperatives, mutuals). The leading capitalised-token run is unchanged so
-# we still match "Acme Holdings Pty Ltd" while now also catching
-# "Smith & Partners Lawyers" and "Bayside Medical Centre".
+# cooperatives, mutuals). The leading capitalised-token run requires the
+# first token to start with a letter and contain at least one lowercase
+# letter — this prevents identifier-like ALL-CAPS+digits tokens
+# (e.g. "DEN0004340031") from being misread as the head of an org name.
 _ORG_SUFFIX_PATTERN = re.compile(
     r"\b("
-    r"(?:[A-Z][\w&'\-]*(?:\s+(?:&\s+)?[A-Z][\w&'\-]*){0,5})"
+    r"(?:[A-Z][a-z][\w&'\-]*(?:\s+(?:&\s+)?[A-Z][\w&'\-]*){0,5})"
     r"\s+"
     r"(?:Pty\s*\.?\s*Ltd\.?|Pty\s+Limited|Ltd\.?|Limited|LLP|"
     r"Corporation|Corp\.?|Inc\.?|Co\.?|"
     r"Group|Holdings|Industries|Associates|Partners|LLC|Australia|Australasia|"
     # v0.4.3 — medical
-    r"Clinic|Medical\s+Centre|Health\s+Service|Health\s+Services|Practice|"
+    r"Clinic|Medical\s+Centre|Health\s+Service|Health\s+Services|"
     # v0.4.3 — legal
     r"Lawyers|Legal|Solicitors|Barristers|Chambers|"
     # v0.4.3 — community / non-profit / financial mutuals
     r"Cooperative|Co-operative|Mutual|Society|Association|Foundation|Trust)"
+    r")\b"
+)
+
+# `Practice` is too generic a suffix on its own — it collides with
+# "Practice address:" labels in registration documents. Only emit when
+# the leading capitalised-token run contains a clearly-medical
+# qualifier ("Medical", "Dental", "General", "Specialist", "Family",
+# "Group") so we tag "Eastern Suburbs Medical Practice" but NOT
+# "DEN0004340031\nPractice".
+_ORG_PRACTICE_PATTERN = re.compile(
+    r"\b("
+    r"(?:[A-Z][a-z][\w&'\-]*\s+){0,4}"
+    r"(?:Medical|Dental|General|Specialist|Family|Group|Surgical|"
+    r"Orthopaedic|Paediatric|Veterinary|Legal|Family\s+Law)"
+    r"\s+Practice"
     r")\b"
 )
 
@@ -220,10 +236,12 @@ _ORG_HOSPITAL_PATTERN = re.compile(
 # v0.4.3 — medical centres / clinics / health services without corporate
 # suffix (e.g. "Bayside Medical Centre", "Northside GP Clinic"). Caps-noun
 # prefix + medical-facility keyword. Distinct from the suffix pattern so
-# 2-3-token names like "Bayside Medical Centre" match cleanly.
+# 2-3-token names like "Bayside Medical Centre" match cleanly. The first
+# token must contain a lowercase letter so identifier-like ALL-CAPS+digits
+# tokens (e.g. "DEN0004340031") cannot anchor a false-positive org span.
 _ORG_MEDICAL_FACILITY_PATTERN = re.compile(
     r"\b("
-    r"(?:[A-Z][\w'\-]+\s+){1,4}"
+    r"(?:[A-Z][a-z][\w'\-]*\s+){1,4}"
     r"(?:Medical\s+Centre|Health\s+Service|Health\s+Services|"
     r"Health\s+Care|Healthcare|Aged\s+Care|GP\s+Clinic|"
     r"Day\s+Hospital|Day\s+Surgery|Specialist\s+Centre)"
@@ -391,6 +409,10 @@ class AUOrganisationRecogniser:
 
         # 5b. v0.4.3 — legal "& Partners / and Associates" compound names
         for m in _ORG_LEGAL_PARTNERS_PATTERN.finditer(text):
+            spans.append((m.start(), m.end(), m.group(0), False))
+
+        # 5c. v0.4.3 — qualified medical "Practice" names
+        for m in _ORG_PRACTICE_PATTERN.finditer(text):
             spans.append((m.start(), m.end(), m.group(0), False))
 
         # 6. Acronyms — only if there's context (expansion present in doc OR
