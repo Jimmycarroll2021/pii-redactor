@@ -1,0 +1,71 @@
+# AU Organisation Acronyms (TSV: acronym<TAB>canonical_name)
+# v0.4.1 — used to tag bare acronyms only when context contains the expansion
+# (or canonical short form). One line = one acronym→expansion mapping.
+# Generic acronyms always tagged (regardless of context) ARE marked with *.
+#
+# Format: acronym\tcanonical_expansion[\tcontext_keywords (comma-separated)]
+#
+# Common spellings the OpenAI filter consistently misses.
+
+ATO	Australian Taxation Office	tax,tax file,taxation
+ASIC	Australian Securities and Investments Commission	securities,investment,company
+ABS	Australian Bureau of Statistics	bureau of statistics,census,abs.gov
+APRA	Australian Prudential Regulation Authority	prudential,banking,regulator
+ACCC	Australian Competition and Consumer Commission	competition,consumer
+ASX	Australian Securities Exchange	securities exchange,stock exchange
+AFP	Australian Federal Police	police,federal police
+ASIO	Australian Security Intelligence Organisation	security intelligence,intelligence
+ASD	Australian Signals Directorate	signals,intelligence
+ACSC	Australian Cyber Security Centre	cyber,cyber security
+ACIC	Australian Criminal Intelligence Commission	criminal intelligence
+AUSTRAC	Australian Transaction Reports and Analysis Centre	transaction reports,anti-money,aml
+ACMA	Australian Communications and Media Authority	communications,media authority
+ATSB	Australian Transport Safety Bureau	transport safety
+TGA	Therapeutic Goods Administration	therapeutic goods,medicines
+AHPRA	Australian Health Practitioner Regulation Agency	health practitioner,registration
+NDIS	National Disability Insurance Scheme	disability,insurance scheme
+NDIA	National Disability Insurance Agency	ndis,disability
+RBA	Reserve Bank of Australia	reserve bank,monetary,cash rate
+CSIRO	Commonwealth Scientific and Industrial Research Organisation	scientific,research organisation
+ABF	Australian Border Force	border force,customs
+ABCC	Australian Building and Construction Commission	building,construction commission
+ARENA	Australian Renewable Energy Agency	renewable energy
+NACC	National Anti-Corruption Commission	anti-corruption,corruption commission
+OAIC	Office of the Australian Information Commissioner	information commissioner,privacy
+RACGP	Royal Australian College of General Practitioners	general practitioner,royal college,medical college
+RACS	Royal Australasian College of Surgeons	surgeons,royal college
+RACP	Royal Australasian College of Physicians	physicians,royal college
+RANZCP	Royal Australian and New Zealand College of Psychiatrists	psychiatrists
+RANZCOG	Royal Australian and New Zealand College of Obstetricians and Gynaecologists	obstetricians,gynaecologists
+RANZCR	Royal Australian and New Zealand College of Radiologists	radiologists
+RCPA	Royal College of Pathologists of Australasia	pathologists
+AMA	Australian Medical Association	medical association
+PGA	Pharmacy Guild of Australia	pharmacy
+PSA	Pharmaceutical Society of Australia	pharmaceutical
+RAC	Royal Australian Corps	royal australian
+RAAF	Royal Australian Air Force	air force,raaf
+RAN	Royal Australian Navy	navy
+ABC	Australian Broadcasting Corporation	broadcasting,abc news,abc tv
+SBS	Special Broadcasting Service	broadcasting
+ATAR	Australian Tertiary Admission Rank	tertiary admission,university entry
+TAFE	Technical and Further Education	technical and further,vocational
+NSW	New South Wales	new south wales
+VIC	Victoria	victoria
+QLD	Queensland	queensland
+WA	Western Australia	western australia
+SA	South Australia	south australia
+TAS	Tasmania	tasmania
+NT	Northern Territory	northern territory
+ACT	Australian Capital Territory	canberra,capital territory
+CBA	Commonwealth Bank of Australia	commonwealth bank
+NAB	National Australia Bank	national australia bank
+ANZ	Australia and New Zealand Banking Group	anz bank,new zealand banking
+WBC	Westpac Banking Corporation	westpac
+RACV	Royal Automobile Club of Victoria	automobile club victoria
+NRMA	National Roads and Motorists' Association	roads and motorists,nrma insurance
+QBE	QBE Insurance Group	qbe insurance
+IAG	Insurance Australia Group	insurance australia
+BHP	BHP Group	bhp billiton,bhp group
+RIO	Rio Tinto	rio tinto
+FMG	Fortescue Metals Group	fortescue metals
+QANTAS	Qantas Airways	qantas airways

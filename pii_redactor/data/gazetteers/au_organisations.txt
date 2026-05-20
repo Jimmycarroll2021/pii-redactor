@@ -1,0 +1,370 @@
+# AU Organisations Gazetteer (curated, top-tier)
+# v0.4.1 — Phase 5 redact-au org recogniser
+#
+# Format: one organisation name per line. Lines starting with # are comments.
+# Matching: case-sensitive, word-boundary anchored.
+# Sources:
+#   - data.gov.au — federal department list, state government directories
+#   - asic.gov.au — public agency / commission register
+#   - Public domain knowledge: hospitals, universities, banks, top law firms
+#
+# Excludes generic acronyms (ATO/ASIC/etc handled by acronym rule + context).
+# When an org appears here, the recogniser sets validator_passed=True.
+
+# --- Commonwealth / federal departments and agencies -------------------------
+Australian Taxation Office
+Australian Securities and Investments Commission
+Australian Bureau of Statistics
+Services Australia
+Centrelink
+Medicare Australia
+Department of Health and Aged Care
+Department of Home Affairs
+Department of Foreign Affairs and Trade
+Department of Defence
+Department of Education
+Department of Employment and Workplace Relations
+Department of Finance
+Department of Infrastructure, Transport, Regional Development, Communications and the Arts
+Department of Industry, Science and Resources
+Department of Climate Change, Energy, the Environment and Water
+Department of Social Services
+Department of Veterans' Affairs
+Department of Agriculture, Fisheries and Forestry
+Department of the Prime Minister and Cabinet
+Department of the Treasury
+Attorney-General's Department
+Australian Federal Police
+Australian Border Force
+Australian Security Intelligence Organisation
+Australian Signals Directorate
+Australian Cyber Security Centre
+Australian Criminal Intelligence Commission
+Australian Communications and Media Authority
+Australian Competition and Consumer Commission
+Australian Prudential Regulation Authority
+Australian Transaction Reports and Analysis Centre
+Australian Financial Security Authority
+Australian Office of Financial Management
+Reserve Bank of Australia
+Australian Trade and Investment Commission
+Austrade
+Australian Aid
+Australian Antarctic Division
+Australian Electoral Commission
+Australian Human Rights Commission
+Australian Information Commissioner
+Office of the Australian Information Commissioner
+Inspector-General of Intelligence and Security
+National Anti-Corruption Commission
+National Archives of Australia
+National Disability Insurance Agency
+National Indigenous Australians Agency
+National Library of Australia
+National Museum of Australia
+Civil Aviation Safety Authority
+Airservices Australia
+Australian Maritime Safety Authority
+Australian Pesticides and Veterinary Medicines Authority
+Australian Postal Corporation
+Australia Post
+Bureau of Meteorology
+Comcare
+CSIRO
+Commonwealth Scientific and Industrial Research Organisation
+Geoscience Australia
+IP Australia
+Productivity Commission
+Safe Work Australia
+Standards Australia
+Therapeutic Goods Administration
+Tourism Australia
+Australian Health Practitioner Regulation Agency
+
+# --- State governments / agencies --------------------------------------------
+NSW Health
+NSW Department of Communities and Justice
+NSW Department of Education
+NSW Department of Customer Service
+NSW Department of Planning and Environment
+NSW Department of Premier and Cabinet
+Service NSW
+Revenue NSW
+Transport for NSW
+Sydney Trains
+NSW Police Force
+NSW Ambulance
+icare NSW
+SafeWork NSW
+Liquor & Gaming NSW
+Victorian Department of Health
+Victorian Department of Education
+Department of Premier and Cabinet Victoria
+Department of Justice and Community Safety
+Department of Transport and Planning
+Department of Families, Fairness and Housing
+VicHealth
+Service Victoria
+Victoria Police
+Victorian Ambulance
+WorkSafe Victoria
+Queensland Health
+Queensland Department of Education
+Queensland Police Service
+Queensland Ambulance Service
+Department of Justice and Attorney-General Queensland
+Department of Transport and Main Roads
+Department of Health Western Australia
+WA Department of Education
+Western Australia Police Force
+Western Australian Police Force
+SA Health
+South Australia Police
+Department for Education South Australia
+Tasmania Police
+Department of Health Tasmania
+NT Health
+NT Department of Education
+NT Police
+ACT Health
+ACT Education Directorate
+
+# --- Hospitals (top tier, both public and private) ---------------------------
+Royal Melbourne Hospital
+Royal Children's Hospital
+Royal Women's Hospital
+Royal Hobart Hospital
+Royal Adelaide Hospital
+Royal North Shore Hospital
+Royal Prince Alfred Hospital
+Royal Perth Hospital
+Royal Brisbane and Women's Hospital
+Royal Darwin Hospital
+Royal Hospital for Women
+St Vincent's Hospital
+St George Hospital
+Westmead Hospital
+Westmead Children's Hospital
+Sydney Children's Hospital
+The Alfred Hospital
+Alfred Health
+Monash Medical Centre
+Monash Health
+Austin Hospital
+Austin Health
+Northern Hospital
+Peter MacCallum Cancer Centre
+Sir Charles Gairdner Hospital
+Princess Margaret Hospital
+Princess Alexandra Hospital
+Fiona Stanley Hospital
+Townsville Hospital
+Gold Coast University Hospital
+John Hunter Hospital
+Royal Newcastle Centre
+Calvary Health Care
+Mater Hospital
+Mater Health
+Cabrini Health
+Epworth Healthcare
+Ramsay Health Care
+Healthscope
+Healius
+Sonic Healthcare
+Bupa Australia
+Medibank Private
+nib Health Funds
+HCF
+Australian Unity
+
+# --- Universities ------------------------------------------------------------
+University of Sydney
+University of Melbourne
+University of Queensland
+University of New South Wales
+UNSW Sydney
+Australian National University
+University of Adelaide
+University of Western Australia
+Monash University
+University of Technology Sydney
+University of Newcastle
+University of Wollongong
+Macquarie University
+Western Sydney University
+University of Tasmania
+Deakin University
+La Trobe University
+RMIT University
+Swinburne University of Technology
+Victoria University
+Federation University Australia
+Queensland University of Technology
+Griffith University
+James Cook University
+Central Queensland University
+University of the Sunshine Coast
+Bond University
+Curtin University
+Edith Cowan University
+Murdoch University
+University of Notre Dame Australia
+Flinders University
+University of South Australia
+Charles Darwin University
+University of Canberra
+University of Divinity
+Torrens University Australia
+University of New England
+Charles Sturt University
+Southern Cross University
+Australian Catholic University
+Western Australia College of Agriculture
+ACU
+Australian Maritime College
+
+# --- Banks and major financial institutions ---------------------------------
+Commonwealth Bank of Australia
+Westpac Banking Corporation
+Westpac
+Australia and New Zealand Banking Group
+ANZ Banking Group
+National Australia Bank
+Macquarie Bank
+Macquarie Group
+Suncorp Bank
+Bendigo and Adelaide Bank
+Bank of Queensland
+ING Australia
+HSBC Australia
+Citibank Australia
+Heritage Bank
+ME Bank
+Bankwest
+Beyond Bank
+Newcastle Permanent
+Greater Bank
+P&N Bank
+RACQ Bank
+Defence Bank
+Bank Australia
+Bank First
+Teachers Mutual Bank
+Police Bank
+Judo Bank
+AMP Bank
+Rabobank Australia
+QBE Insurance
+IAG
+Insurance Australia Group
+Allianz Australia
+NRMA Insurance
+RACQ Insurance
+RAC Insurance
+Zurich Australia
+Suncorp Group
+TAL Life
+MLC Life Insurance
+
+# --- Top law firms (Australian Big Six + national mid-tier) ------------------
+Allens
+Allens Linklaters
+Ashurst Australia
+Ashurst
+Clayton Utz
+Corrs Chambers Westgarth
+Herbert Smith Freehills
+King & Wood Mallesons
+KWM
+MinterEllison
+Norton Rose Fulbright Australia
+Baker McKenzie Australia
+Gilbert + Tobin
+Holding Redlich
+Hall & Wilcox
+HWL Ebsworth Lawyers
+Maddocks
+Lander & Rogers
+Russell Kennedy
+Thomson Geer
+Sparke Helmore Lawyers
+Mills Oakley
+Piper Alderman
+McCullough Robertson
+Hicksons Lawyers
+Sandstone Legal
+Maurice Blackburn Lawyers
+Slater and Gordon
+Shine Lawyers
+Carroll & O'Dea Lawyers
+
+# --- Top tech and ASX-listed enterprises (frequently referenced) ------------
+BHP Group
+BHP Billiton
+Rio Tinto
+Fortescue Metals Group
+Woolworths Group
+Coles Group
+Wesfarmers
+Bunnings
+Officeworks
+Telstra
+Optus
+TPG Telecom
+Vocus Group
+Atlassian
+Canva
+Afterpay
+Block Australia
+Xero
+WiseTech Global
+Carsales.com
+REA Group
+Domain Group
+Seek Limited
+Cochlear
+ResMed
+CSL Limited
+Sonic Healthcare
+Origin Energy
+AGL Energy
+EnergyAustralia
+Santos
+Woodside Energy
+Qantas
+Virgin Australia
+Jetstar
+Brambles
+Goodman Group
+Lendlease
+Stockland
+Mirvac
+Scentre Group
+Vicinity Centres
+Transurban
+Sydney Airport
+Aurizon
+APA Group
+
+# --- Tertiary regulators and certifying bodies ------------------------------
+Australian Health Practitioner Regulation Agency
+AHPRA
+Medical Board of Australia
+Nursing and Midwifery Board of Australia
+Pharmacy Board of Australia
+Psychology Board of Australia
+Dental Board of Australia
+Optometry Board of Australia
+Osteopathy Board of Australia
+Physiotherapy Board of Australia
+Australian Council on Healthcare Standards
+Royal Australian College of General Practitioners
+Royal Australasian College of Physicians
+Royal Australasian College of Surgeons
+Royal Australian and New Zealand College of Psychiatrists
+Royal Australian and New Zealand College of Obstetricians and Gynaecologists
+Royal College of Pathologists of Australasia
+Royal Australian and New Zealand College of Radiologists
+Australian Medical Association
+Pharmacy Guild of Australia
+Australian Pharmaceutical Industries

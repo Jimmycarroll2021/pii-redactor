@@ -57,3 +57,7 @@ scale-tests/fixtures/kaggle-pii-diverse-12/
 
 # Local data dir
 data/
+# But keep packaged gazetteers (v0.4.1 org+loc recognisers)
+!pii_redactor/data/
+!pii_redactor/data/gazetteers/
+!pii_redactor/data/gazetteers/*.txt

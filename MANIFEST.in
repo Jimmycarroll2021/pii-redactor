@@ -1,0 +1,4 @@
+include pii_redactor/data/gazetteers/*.txt
+include README.md
+include CHANGELOG.md
+include LICENSE*
