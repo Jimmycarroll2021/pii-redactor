@@ -9,6 +9,17 @@ Used when ``PIIR_BACKEND=transformers_au_finetuned`` and
 ``PIIR_LORA_ADAPTER`` points at an adapter directory (default
 ``/mnt/ai/adapters/redact-au-1b/best``).
 """
+
+# References:
+#   Hu, E. J., Shen, Y., Wallis, P., Allen-Zhu, Z., Li, Y., Wang, S., Wang, L., &
+#   Chen, W. (2022). LoRA: Low-Rank Adaptation of Large Language Models. ICLR 2022.
+#   arxiv:2106.09685.
+#   See `docs/references/hu-2022-lora.pdf` and
+#   `docs/references/REFERENCES.md` (citekey: hu-2022-lora).
+#
+#   This module loads a LoRA adapter (rank-decomposition update matrices) on top of
+#   the `openai/privacy-filter` base via the HuggingFace PEFT library.
+
 from __future__ import annotations
 
 import logging
