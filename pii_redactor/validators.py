@@ -8,6 +8,28 @@ A validator returning False filters out the detection. Returning True
 confirms it. Returning None means no validator exists for that category,
 and the LLM detection is trusted as-is.
 """
+
+# References:
+#   Australian Taxation Office (ATO) — Tax File Number (TFN) checksum.
+#   Mod-11 weighted-sum with weight vector [1, 4, 3, 7, 5, 8, 6, 9, 10]
+#   for the 9-digit format; supports both 8-digit (legacy) and 9-digit.
+#   https://www.ato.gov.au/individuals-and-families/tax-file-number
+#
+#   Australian Business Register (ABR) — ABN Lookup + 11-digit ABN checksum
+#   (mod-89 weighted-sum). Web service docs:
+#   https://abr.business.gov.au/Tools/WebServices
+#
+#   Australian Securities & Investments Commission (ASIC) — ACN 9-digit
+#   mod-10 weighted-sum checksum, used as the sanity check for the
+#   business-component of the ABN.
+#
+#   Australian Digital Health Agency (ADHA, formerly NEHTA) — Individual
+#   Healthcare Identifier (IHI) 16-digit specification + Luhn checksum.
+#   https://www.digitalhealth.gov.au/healthcare-providers/individual-healthcare-identifiers-ihi
+#
+#   All four retrieved 2026-05-21.
+#   See `docs/references/REFERENCES.md` (sections: ATO TFN, ABR ABN, ASIC ACN, IHI).
+
 from __future__ import annotations
 
 import re
