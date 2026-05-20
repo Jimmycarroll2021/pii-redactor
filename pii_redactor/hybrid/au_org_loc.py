@@ -162,13 +162,38 @@ AU_STATE_CONTEXT = (
 # Organisation patterns (precompiled)
 # ---------------------------------------------------------------------------
 # Companies with corporate suffixes — high precision.
+# v0.4.3: extend the suffix vocabulary to cover medical, legal, and community
+# organisations the Phase 4 sector bench was missing (clinics, law firms,
+# cooperatives, mutuals). The leading capitalised-token run is unchanged so
+# we still match "Acme Holdings Pty Ltd" while now also catching
+# "Smith & Partners Lawyers" and "Bayside Medical Centre".
 _ORG_SUFFIX_PATTERN = re.compile(
     r"\b("
-    r"(?:[A-Z][\w&'\-]*(?:\s+[A-Z][\w&'\-]*){0,5})"
+    r"(?:[A-Z][\w&'\-]*(?:\s+(?:&\s+)?[A-Z][\w&'\-]*){0,5})"
     r"\s+"
     r"(?:Pty\s*\.?\s*Ltd\.?|Pty\s+Limited|Ltd\.?|Limited|LLP|"
     r"Corporation|Corp\.?|Inc\.?|Co\.?|"
-    r"Group|Holdings|Industries|Associates|Partners|LLC|Australia|Australasia)"
+    r"Group|Holdings|Industries|Associates|Partners|LLC|Australia|Australasia|"
+    # v0.4.3 — medical
+    r"Clinic|Medical\s+Centre|Health\s+Service|Health\s+Services|Practice|"
+    # v0.4.3 — legal
+    r"Lawyers|Legal|Solicitors|Barristers|Chambers|"
+    # v0.4.3 — community / non-profit / financial mutuals
+    r"Cooperative|Co-operative|Mutual|Society|Association|Foundation|Trust)"
+    r")\b"
+)
+
+# Compound legal-firm patterns like "Smith & Partners", "Brown, Black & Co",
+# "Jones and Associates Solicitors". The leading run must look like a
+# law-firm name (initial-cap surnames + ampersand / "and"). Conservative —
+# the trailing keyword is required so we don't tag two-name phrases.
+_ORG_LEGAL_PARTNERS_PATTERN = re.compile(
+    r"\b("
+    r"[A-Z][\w'\-]+"
+    r"(?:\s*,\s*[A-Z][\w'\-]+)*"
+    r"\s+(?:&|and)\s+"
+    r"(?:Partners|Associates|Co\.?)"
+    r"(?:\s+(?:Lawyers|Legal|Solicitors|Barristers|Chambers))?"
     r")\b"
 )
 
@@ -189,6 +214,19 @@ _ORG_HOSPITAL_PATTERN = re.compile(
     r"Eastern|Southern|Sydney|Melbourne|Brisbane|Perth|Adelaide|Princess)\s+)+"
     r"(?:[A-Z][\w']*\s+)*"
     r"Hospital"
+    r")\b"
+)
+
+# v0.4.3 — medical centres / clinics / health services without corporate
+# suffix (e.g. "Bayside Medical Centre", "Northside GP Clinic"). Caps-noun
+# prefix + medical-facility keyword. Distinct from the suffix pattern so
+# 2-3-token names like "Bayside Medical Centre" match cleanly.
+_ORG_MEDICAL_FACILITY_PATTERN = re.compile(
+    r"\b("
+    r"(?:[A-Z][\w'\-]+\s+){1,4}"
+    r"(?:Medical\s+Centre|Health\s+Service|Health\s+Services|"
+    r"Health\s+Care|Healthcare|Aged\s+Care|GP\s+Clinic|"
+    r"Day\s+Hospital|Day\s+Surgery|Specialist\s+Centre)"
     r")\b"
 )
 
@@ -227,6 +265,61 @@ _REGION_PATTERN = re.compile(
     r")\b"
 )
 
+# v0.4.3 — informal Greater/Inner directional regions with explicit AU
+# anchors (capital city or compass direction). Matches "Greater Sydney",
+# "Inner West", "Inner East", "Northern Beaches", "Western Sydney", etc.
+_INFORMAL_REGION_PATTERN = re.compile(
+    r"\b("
+    r"Greater\s+(?:Sydney|Melbourne|Brisbane|Perth|Adelaide|Canberra|"
+    r"Hobart|Darwin|Newcastle|Wollongong|Geelong)"
+    r"|"
+    r"Inner\s+(?:West|East|North|South|City|Sydney|Melbourne|Brisbane)"
+    r"|"
+    r"Outer\s+(?:West|East|North|South|Sydney|Melbourne|Brisbane)"
+    r"|"
+    r"Northern\s+(?:Beaches|Suburbs|Rivers|Territory|Tablelands)"
+    r"|"
+    r"Southern\s+(?:Highlands|Tablelands|Suburbs|Cross)"
+    r"|"
+    r"Eastern\s+(?:Suburbs|Beaches|Freeway)"
+    r"|"
+    r"Western\s+(?:Suburbs|Sydney|Melbourne|Australia)"
+    r"|"
+    r"Mid[\s-]North\s+Coast"
+    r"|"
+    r"Far\s+North\s+(?:Queensland|Coast)"
+    r")\b"
+)
+
+# v0.4.3 — well-known AU named regions and "the X" phrases. These are
+# regional / topographical references with no street component so they
+# resolve to LOCATION (not ADDRESS).
+_NAMED_REGION_PATTERN = re.compile(
+    r"\b(?:the\s+)?("
+    r"Top\s+End|Outback|Goldfields|Pilbara|Kimberley|"
+    r"Hunter\s+Valley|Yarra\s+Valley|Barossa\s+Valley|"
+    r"Margaret\s+River|McLaren\s+Vale|Mornington\s+Peninsula|"
+    r"Sunshine\s+Coast|Gold\s+Coast|Central\s+Coast|"
+    r"Blue\s+Mountains|Snowy\s+Mountains|Great\s+Dividing\s+Range|"
+    r"Daintree|Kakadu|Red\s+Centre|Atherton\s+Tableland"
+    r")\b",
+    re.IGNORECASE,
+)
+
+# v0.4.3 — "CBD" / "Central Business District" within AU city context.
+_CBD_PATTERN = re.compile(
+    r"\b("
+    r"(?:Sydney|Melbourne|Brisbane|Perth|Adelaide|Canberra|"
+    r"Hobart|Darwin|Newcastle|Wollongong|Geelong)\s+CBD"
+    r"|"
+    r"CBD\s+of\s+(?:Sydney|Melbourne|Brisbane|Perth|Adelaide|"
+    r"Canberra|Hobart|Darwin)"
+    r"|"
+    r"(?:Sydney|Melbourne|Brisbane|Perth|Adelaide|Canberra|"
+    r"Hobart|Darwin)\s+Central\s+Business\s+District"
+    r")\b"
+)
+
 # Standalone 4-digit number candidates (for postcode resolution).
 _FOUR_DIGITS = re.compile(r"\b(\d{4})\b")
 
@@ -234,6 +327,18 @@ _FOUR_DIGITS = re.compile(r"\b(\d{4})\b")
 _STATE_ABBREV_PATTERN = re.compile(
     r"\b(NSW|VIC|QLD|WA|SA|TAS|NT|ACT)\b"
 )
+
+# v0.4.3 — street-suffix keywords used by the address-vs-location
+# disambiguator in au_resolver. Exposed at module scope so the resolver
+# can import the canonical list.
+AU_STREET_SUFFIXES = frozenset({
+    "Street", "St", "Road", "Rd", "Avenue", "Ave", "Lane", "Ln",
+    "Drive", "Dr", "Crescent", "Cres", "Court", "Ct", "Place", "Pl",
+    "Way", "Highway", "Hwy", "Parade", "Pde", "Boulevard", "Blvd",
+    "Terrace", "Tce", "Close", "Cl", "Circuit", "Cct", "Esplanade",
+    "Esp", "Square", "Sq", "Mews", "Walk", "Track", "Trail", "Loop",
+    "Rise", "View", "Vista", "Grove", "Gardens", "Gdns", "Park",
+})
 
 
 # ---------------------------------------------------------------------------
@@ -278,6 +383,14 @@ class AUOrganisationRecogniser:
 
         # 5. Universities
         for m in _ORG_UNI_PATTERN.finditer(text):
+            spans.append((m.start(), m.end(), m.group(0), False))
+
+        # 5a. v0.4.3 — medical centres / clinics / day surgeries
+        for m in _ORG_MEDICAL_FACILITY_PATTERN.finditer(text):
+            spans.append((m.start(), m.end(), m.group(0), False))
+
+        # 5b. v0.4.3 — legal "& Partners / and Associates" compound names
+        for m in _ORG_LEGAL_PARTNERS_PATTERN.finditer(text):
             spans.append((m.start(), m.end(), m.group(0), False))
 
         # 6. Acronyms — only if there's context (expansion present in doc OR
@@ -428,6 +541,22 @@ class AULocationRecogniser:
                                 "Australia", "Queensland", "Victoria",
                                 "Tasmania", "Territory"}):
                 spans.append((m.start(), m.end(), candidate, True))
+
+        # 6. v0.4.3 — informal Greater/Inner/Northern directional regions
+        # ("Greater Sydney", "Inner West", "Northern Beaches"). High
+        # precision — anchored on either capital city or compass direction.
+        for m in _INFORMAL_REGION_PATTERN.finditer(text):
+            spans.append((m.start(), m.end(), m.group(0), True))
+
+        # 7. v0.4.3 — named AU regions ("the Yarra Valley", "Pilbara",
+        # "Hunter Valley", etc.). Capture group 1 is the bare name; the
+        # span itself includes the optional "the " prefix if present.
+        for m in _NAMED_REGION_PATTERN.finditer(text):
+            spans.append((m.start(), m.end(), m.group(0), True))
+
+        # 8. v0.4.3 — "Sydney CBD" / "CBD of Melbourne" style references.
+        for m in _CBD_PATTERN.finditer(text):
+            spans.append((m.start(), m.end(), m.group(0), True))
 
         # Deduplicate / pick longest at each position
         spans.sort(key=lambda s: (s[0], -(s[1] - s[0])))
