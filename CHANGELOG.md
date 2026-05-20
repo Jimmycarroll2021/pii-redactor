@@ -1,5 +1,146 @@
 # Changelog
 
+## [0.4.3] — 2026-05-20
+
+### Added — rules-only extension (Path B, half-day patch)
+
+Phase 6.2 multi-adapter LoRA work was halted at the frozen-bench HOLD-CHECK
+(Medical narrative could not be recovered from public replay datasets).
+v0.4.3 ships the parallel "Phase 5.1" rule-layer extension that closes
+the rest of the Phase 4 sector gap without retraining: extra org-suffix
+vocabulary, extra informal-location regexes, and the
+`private_address` → address-vs-location schema disambiguation called out
+by the Phase 6.2 Codex peer review.
+
+- **`au_org_loc._ORG_SUFFIX_PATTERN`** extended with medical, legal, and
+  community suffixes: `Clinic`, `Medical Centre`, `Health Service`,
+  `Practice`, `Lawyers`, `Legal`, `Solicitors`, `Barristers`, `Chambers`,
+  `Cooperative`, `Mutual`, `Society`, `Association`, `Foundation`,
+  `Trust`. The capitalised-token run now also allows `&`-separated
+  partners so `Smith & Brown Lawyers` matches as a single span.
+- **`au_org_loc._ORG_LEGAL_PARTNERS_PATTERN`** (new) — catches
+  "Smith & Partners", "Jones and Associates Solicitors" compound names.
+- **`au_org_loc._ORG_MEDICAL_FACILITY_PATTERN`** (new) — non-suffix
+  medical-facility names: `Bayside Medical Centre`, `Northside GP Clinic`,
+  `Aged Care`, `Healthcare`, `Day Hospital`, `Day Surgery`,
+  `Specialist Centre`.
+- **`au_org_loc._INFORMAL_REGION_PATTERN`** (new) — high-precision
+  Greater/Inner/Outer/Northern/Southern/Eastern/Western informal regions
+  anchored on a known city or compass direction.
+- **`au_org_loc._NAMED_REGION_PATTERN`** (new) — well-known AU regions
+  with optional `the ` prefix: `Top End`, `Outback`, `Pilbara`,
+  `Goldfields`, `Hunter Valley`, `Yarra Valley`, `Barossa Valley`,
+  `Margaret River`, `McLaren Vale`, `Mornington Peninsula`, `Sunshine
+  Coast`, `Gold Coast`, `Central Coast`, `Blue Mountains`,
+  `Snowy Mountains`, `Great Dividing Range`, `Daintree`, `Kakadu`,
+  `Red Centre`, `Atherton Tableland`.
+- **`au_org_loc._CBD_PATTERN`** (new) — `Sydney CBD`, `CBD of Melbourne`,
+  `Brisbane Central Business District` style references.
+
+### Added — `private_address` → address/location disambiguator
+
+The Phase 6.2 Codex peer review identified the root cause of the
+`location` recall floor: `openai/privacy-filter` collapses BOTH postal
+addresses AND standalone locations into a single `private_address`
+label, so the per-category metric for `location` was stuck at ~0% even
+when the model recovered the spans. v0.4.3 fixes this at the
+rule layer instead of via retraining.
+
+- **`au_resolver._disambiguate_address_vs_location`** (new) — span-local
+  structural heuristic. Returns `"address"` when the span has a street
+  number + street suffix, a 4-digit postcode, a street suffix alone, or
+  a PO/GPO Box / Locked Bag prefix; returns `"location"` for pure
+  suburb / region / state references.
+- **`au_resolver.resolve_account_numbers`** wires the disambiguator into
+  every `private_address` candidate before the PIICategory mapping, so
+  the production pipeline emits `LOCATION` for `Greater Sydney`,
+  `Inner West`, `the Yarra Valley`, `NSW`, `Northern Territory`, etc.,
+  while keeping `23 Collins Street, Melbourne VIC 3000`,
+  `1/45 Park Road, Brunswick`, and `PO Box 123, Sydney NSW 2000` as
+  `ADDRESS`.
+
+### Added — gazetteer expansion (~90 new entries)
+
+`pii_redactor/data/gazetteers/au_organisations.txt` grew from ~300 to
+~390 entries. New sections:
+
+- **Top-tier AU law firms (not previously covered)** — Arnold Bloch
+  Leibler, Bartier Perry, Carter Newell Lawyers, Clayton Utz (existing),
+  Clamenz Lawyers, Clifford Chance Australia, Colin Biggers & Paisley,
+  Cornwalls, DLA Piper Australia, DibbsBarker, Dentons Australia,
+  Gadens, Henry William Lawyers, Hicksons, Hogan Lovells Australia,
+  HopgoodGanim Lawyers, Jackson McDonald, K&L Gates Australia, Kennedys
+  Australia, Lavan, Lipman Karas, Macpherson Kelley, McCabe Curwood,
+  McInnes Wilson Lawyers, Meridian Lawyers, Moray & Agnew, Norton
+  Gledhill, Norton White, Pinsent Masons Australia, Sparke Helmore,
+  Squire Patton Boggs Australia, TressCox Lawyers, Wotton + Kearney
+  (~33 firms).
+- **AU medical / aged-care / hospital groups** — ICON Group, ICON
+  Cancer Centre, Heritage Care, Estia Health, Regis Aged Care, Bolton
+  Clarke, BlueCross Aged Care, Opal HealthCare, Allity Aged Care,
+  Arcare Aged Care, Aurora Healthcare, Healthe Care, GenesisCare,
+  Montserrat Day Hospitals, Nexus Hospitals, Macquarie Health
+  Corporation, Adventist HealthCare, St John of God Health Care,
+  UnitingCare Queensland, Silver Chain Group, Royal Flying Doctor
+  Service, HammondCare, Anglicare, Mission Australia, Wesley Mission
+  (~25 groups).
+- **AU MedTech / health tech** — Pro Medicus, Audinate, Nuix,
+  Nanosonics, PolyNovo, Medical Developments International, Mesoblast,
+  Paradigm Biopharmaceuticals, Avita Medical, Telix Pharmaceuticals,
+  Imugene, Volpara Health Technologies, Atomo Diagnostics, Compumedics,
+  ResApp Health, Universal Biosensors, EMVision Medical Devices,
+  Micro-X, Next Science, Aroa Biosurgery, Race Oncology, Neuren
+  Pharmaceuticals, Clinuvel Pharmaceuticals, Starpharma, Patrys
+  (~25 companies).
+- **Additional federal regulators** — Aged Care Quality and Safety
+  Commission, Fair Work Ombudsman, Fair Work Commission, Australian
+  Skills Quality Authority, Tertiary Education Quality and Standards
+  Agency, Office of the eSafety Commissioner, Office of the National
+  Data Commissioner, National Health and Medical Research Council
+  (NHMRC), Cancer Australia, Department of Health.
+
+### Added — tests (148 total, +11 new)
+
+- `test_clinic_suffix_match` — Medical Centre suffix tags as ORGANISATION
+- `test_legal_firm_suffix_match` — `Lawyers`, `& Partners` suffixes match
+- `test_informal_location_greater_sydney`
+- `test_informal_location_inner_west`
+- `test_informal_location_regional` — `the Yarra Valley`, `Pilbara`
+- `test_address_vs_location_disambiguation_full_address` — street + suburb → address
+- `test_address_vs_location_disambiguation_standalone_suburb` — pure
+  suburb / region / state → location
+- `test_address_vs_location_disambiguation_with_postcode_no_street` —
+  postcode-bound suburb stays as ADDRESS
+- `test_address_vs_location_disambiguation_po_box` — PO Box / GPO Box /
+  Locked Bag stay as ADDRESS
+- `test_address_vs_location_disambiguation_adversarial` —
+  "Smith lives in Sydney" → LOCATION; "77 Smith Street, Wollongong" → ADDRESS
+- `test_au_resolver_post_processes_private_address_label` — end-to-end
+  resolver re-tagging via `resolve_account_numbers`
+
+All 148 tests pass (137 from v0.4.2 + 11 new).
+
+### Compatibility
+
+- v0.4.2 default config unchanged. Same env knobs, same backend defaults.
+- The `private_address` disambiguator is on by default — there is no
+  regression on existing ADDRESS spans (all 137 v0.4.2 tests pass) but
+  any client that relied on the model emitting only `address` for
+  standalone-location spans will now see `LOCATION` for those spans.
+- HF Hub adapter UNCHANGED (still `v0.4.0` weights at
+  `JimmyBhoy/redact-au-1b`).
+- Wheel deps unchanged; no new transitive dependencies.
+- Container image `redact-au-hybrid:0.4.3` is a drop-in replacement for
+  `:0.4.2` with the same env knobs.
+
+### Frozen bench HOLD-CHECK
+
+Gretel-100 + Medical-50 frozen-bench must HOLD exactly the v0.4.2 numbers
+(Gretel 93.67% / 2 leaks, Medical 99.71% / 0 leaks) — automated revert
+on failure per the v0.4.3 patch contract. The rules-only design choice
+explicitly avoids any change that could lift Medical / drop Gretel — the
+disambiguator only re-categorises spans that the model already emitted.
+
 ## [0.4.2] — 2026-05-20
 
 ### Changed — README + PyPI description refresh (no functional changes)
