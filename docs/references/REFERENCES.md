@@ -6,6 +6,20 @@ in our codebase that implements each.
 
 **Last verified:** 2026-05-21
 
+## Reference assets layout
+
+| Location | Role | Format |
+|----------|------|--------|
+| `papers/` | Authoritative source archives | LaTeX tar.gz (arxiv) + USENIX Security final |
+| `docs/references/` | Reading copies + this catalogue | arxiv preprint PDFs |
+| `papers/LM_Memorization/` | Reference implementation (vendored) | Python (read-only, MIT-attributed) |
+
+For the Carlini 2021 paper specifically: `papers/sec21-carlini-extracting.pdf`
+is the USENIX Security final and authoritative;
+`docs/references/carlini-2021-extracting.pdf` is the arxiv preprint kept for
+offline reading convenience. The reference implementation lives at
+`papers/LM_Memorization/` and is mirrored by `redact-au/verify/src/redact_au_verify/canary_carlini.py`.
+
 ## Academic papers
 
 ### Methodology + evaluation
@@ -16,13 +30,14 @@ in our codebase that implements each.
 
 ### Privacy attacks (verification layer)
 
-- **Carlini et al. (2021) — "Extracting Training Data from Large Language Models"** — USENIX Security 2021. arxiv: [2012.07805](https://arxiv.org/abs/2012.07805). PDF: [`carlini-2021-extracting.pdf`](./carlini-2021-extracting.pdf).
-  - **Implements:** canary string insertion + extraction-rate measurement against fine-tuned models.
-  - **Used in:** `redact-au/verify/src/redact_au_verify/canary.py`.
+- **Carlini et al. (2021) — "Extracting Training Data from Large Language Models"** — USENIX Security 2021. arxiv: [2012.07805](https://arxiv.org/abs/2012.07805). PDF: [`carlini-2021-extracting.pdf`](./carlini-2021-extracting.pdf). USENIX final: `../../papers/sec21-carlini-extracting.pdf`. Reference impl: [`papers/LM_Memorization/`](../../papers/LM_Memorization/) (MIT-licensed, vendored snapshot of github.com/ftramer/LM_Memorization at commit `baafa173`).
+  - **Implements §3 (insertion + extraction):** `redact-au/verify/src/redact_au_verify/canary.py` — quickcheck mode (binary string-match against generated output).
+  - **Implements §6 (scoring metrics — perplexity ratio + zlib + case sensitivity):** `redact-au/verify/src/redact_au_verify/canary_carlini.py`.
+  - Both implementations expose the same `Canary` dataclass; the reporter picks the mode via `canary_mode="quickcheck"` (default) or `canary_mode="carlini"`.
 
 - **Shokri et al. (2017) — "Membership Inference Attacks Against Machine Learning Models"** — IEEE S&P 2017. arxiv: [1610.05820](https://arxiv.org/abs/1610.05820). PDF: [`shokri-2017-mia.pdf`](./shokri-2017-mia.pdf).
-  - **Implements:** black-box membership inference via confidence-threshold AUC (simplified Shokri attack — full shadow-model attack is a documented variant).
-  - **Used in:** `redact-au/verify/src/redact_au_verify/membership_inference.py`.
+  - **Implements §4 (confidence-threshold baseline):** `redact-au/verify/src/redact_au_verify/membership_inference.py` (FAITHFUL — published baseline variant, computes ROC AUC via Mann-Whitney U with tie handling).
+  - **§5 (K-shadow-model attack):** deferred to Phase 7 Wave 4. See `redact-au/.planning/phases/07-benchmarking-rigor/07-PLAN.md`. The current threshold attack is the honest published baseline; full shadow-model adds complexity (K models on disjoint splits + meta-classifier) without changing the headline finding for MVP attestation.
 
 ### Model compression + adaptation
 
@@ -38,6 +53,16 @@ in our codebase that implements each.
   - **Note:** arxiv ID `2408.11743` verified 2026-05-21. The fuller title is "MARLIN: Mixed-Precision Auto-Regressive Parallel Inference on Large Language Models", not "Marlin FP16 W4A16 GEMM kernel" as informally referred to internally. Same authors (Frantar, Castro, Chen, Hoefler, Alistarh) and same kernel — the paper covers both the kernel and the batched-inference scheduler that ships in vLLM as `awq_marlin`.
   - **Implements:** the AWQ-Marlin kernel path that gives ~4× speedup over plain AWQ in batched serving.
   - **Used in:** `pii_redactor/hybrid/vllm_pass.py` via the vLLM service configured with `--quantization=awq_marlin`.
+
+## Reference implementations
+
+Vendored ground-truth implementations cross-checked against our re-implementations.
+
+| Paper | Reference impl | Vendored at | Used by |
+|-------|----------------|-------------|---------|
+| Carlini 2021 (extraction) | github.com/ftramer/LM_Memorization (MIT, Florian Tramèr) | [`papers/LM_Memorization/`](../../papers/LM_Memorization/) — commit `baafa173`, 2026-05-21 | `redact-au/verify/src/redact_au_verify/canary_carlini.py` |
+
+The vendored snapshot is **read-only** — citation comments in `canary_carlini.py` point at specific line numbers in `papers/LM_Memorization/extraction.py` for each scoring metric. See `papers/LM_Memorization/VENDORED.md` for the provenance + mapping table.
 
 ## AU regulatory + standards
 
