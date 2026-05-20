@@ -36,6 +36,7 @@ from ..detector import PIIDetector
 from ..models import PIISpan
 from ..pipeline import Pipeline
 from ..redactor import Redactor
+from .au_org_loc import supplement_org_loc
 from .au_resolver import resolve_account_numbers
 from .llama_pass import LlamaNERPass
 from .openai_backend import OpenAIPrivacyFilter
@@ -372,6 +373,12 @@ class HybridDetector:
         if self.use_regex_supplement:
             spans.extend(supplement_with_regex(text, spans))
 
+        # 3b. v0.4.1 — supplement with AU organisation + location
+        # recognisers. Phase 5 closes the org (3-29%) and location (<60%)
+        # recall gaps on the sector bench without retraining.
+        if self.use_regex_supplement:
+            spans.extend(supplement_org_loc(text, spans))
+
         # 4. Merge / dedupe overlapping spans. Among equally-sized overlaps,
         # spans with a passing validator and AU-specific categories win.
         return self._merge_with_au_priority(spans)
@@ -397,6 +404,9 @@ class HybridDetector:
             PIICategory.DRIVER_LICENCE: 90,
             PIICategory.CRN: 90,
             PIICategory.BSB_ACCOUNT: 80,
+            PIICategory.ADDRESS: 60,
+            PIICategory.ORGANISATION: 55,  # v0.4.1
+            PIICategory.LOCATION: 55,      # v0.4.1
             PIICategory.NAME: 50,
             PIICategory.GENERIC_ID: 10,
         }

@@ -34,6 +34,9 @@ class PIICategory(str, Enum):
     GENERIC_ID = "generic_id"
     IP_ADDRESS = "ip_address"
     HEALTHCARE_IDENTIFIER = "healthcare_identifier"
+    # v0.4.1 — coverage extensions for sector bench (Phase 5)
+    ORGANISATION = "organisation"     # Companies, gov agencies, hospitals, unis, banks
+    LOCATION = "location"             # Suburbs, states, postcodes, regions
 
     # Australian government
     TFN = "tfn"                       # Tax File Number
