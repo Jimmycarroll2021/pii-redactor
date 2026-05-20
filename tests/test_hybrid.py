@@ -14,6 +14,7 @@ from pii_redactor import AuditLog, PIICategory, Pipeline, Redactor
 from pii_redactor.hybrid import HybridDetector
 from pii_redactor.hybrid.au_resolver import resolve_account_numbers, resolve_one
 from pii_redactor.hybrid.regex_supplement import supplement_with_regex
+from pii_redactor.models import PIISpan
 
 
 class FakeOpenAIBackend:
@@ -1060,3 +1061,167 @@ def test_config_default_lora_adapter_path():
 
     cfg = Config.from_env()
     assert cfg.lora_adapter_path == "/mnt/ai/adapters/redact-au-1b/best"
+
+
+# ---------------------------------------------------------------------------
+# v0.4.1 — AU organisation + location recognisers (Phase 5)
+# ---------------------------------------------------------------------------
+def test_organisation_recogniser_loads_gazetteer():
+    """Gazetteer loads non-empty for both names and acronyms."""
+    from pii_redactor.hybrid.au_org_loc import (
+        clear_gazetteer_cache,
+        load_organisations,
+    )
+
+    clear_gazetteer_cache()
+    names, acronyms = load_organisations()
+    assert len(names) > 200, f"Expected >200 organisations, got {len(names)}"
+    assert "Australian Taxation Office" in names
+    assert "ATO" in acronyms
+    assert acronyms["ATO"] == "Australian Taxation Office"
+
+
+def test_organisation_pty_ltd_match():
+    """Corporate suffix pattern catches 'Acme Pty Ltd'."""
+    from pii_redactor.hybrid.au_org_loc import AUOrganisationRecogniser
+
+    rec = AUOrganisationRecogniser()
+    spans = rec.recognise("The supplier is Acme Holdings Pty Ltd, based locally.")
+    assert any(
+        s.category == PIICategory.ORGANISATION and "Acme" in (s.value or "")
+        for s in spans
+    ), f"Got: {[(s.value, s.category) for s in spans]}"
+
+
+def test_organisation_gov_agency_match():
+    """Exact gazetteer match for a federal agency."""
+    from pii_redactor.hybrid.au_org_loc import AUOrganisationRecogniser
+
+    rec = AUOrganisationRecogniser()
+    text = "Services Australia notified the Australian Taxation Office."
+    spans = rec.recognise(text)
+    values = {s.value for s in spans}
+    assert "Services Australia" in values, values
+    assert "Australian Taxation Office" in values, values
+
+
+def test_organisation_hospital_match():
+    """Hospital pattern catches 'Royal Melbourne Hospital'."""
+    from pii_redactor.hybrid.au_org_loc import AUOrganisationRecogniser
+
+    rec = AUOrganisationRecogniser()
+    spans = rec.recognise("Patient was transferred to Royal Melbourne Hospital.")
+    assert any(
+        s.category == PIICategory.ORGANISATION
+        and "Royal Melbourne Hospital" in (s.value or "")
+        for s in spans
+    )
+
+
+def test_organisation_acronym_requires_context():
+    """ATO should NOT tag alone; should tag when expansion is nearby."""
+    from pii_redactor.hybrid.au_org_loc import AUOrganisationRecogniser
+
+    rec = AUOrganisationRecogniser()
+    # No context — no match
+    bare = rec.recognise("The ATO said no.")
+    assert not any(s.value == "ATO" for s in bare), (
+        f"ATO should not tag without context, got: {[s.value for s in bare]}"
+    )
+    # With context — tags
+    with_context = rec.recognise(
+        "The Australian Taxation Office (ATO) issued guidance. The ATO said no."
+    )
+    assert any(s.value == "ATO" for s in with_context), (
+        f"ATO should tag with context, got: {[s.value for s in with_context]}"
+    )
+
+
+def test_location_state_abbrev_match():
+    """State abbreviation 'NSW' tags as LOCATION with high confidence."""
+    from pii_redactor.hybrid.au_org_loc import AULocationRecogniser
+
+    rec = AULocationRecogniser()
+    spans = rec.recognise("The office in NSW is closed today.")
+    assert any(
+        s.category == PIICategory.LOCATION and s.value == "NSW"
+        and s.validator_passed is True
+        for s in spans
+    ), f"Got: {[(s.value, s.category, s.validator_passed) for s in spans]}"
+
+
+def test_location_postcode_context_match():
+    """Postcode '2000' tags when accompanied by suburb/state."""
+    from pii_redactor.hybrid.au_org_loc import AULocationRecogniser
+
+    rec = AULocationRecogniser()
+    # With state nearby
+    spans = rec.recognise("Sydney NSW 2000 is the postcode.")
+    pc_hits = [s for s in spans if s.value == "2000"]
+    assert pc_hits, f"Expected 2000 to be tagged; got {[(s.value, s.category) for s in spans]}"
+    # Without context — 2000 should NOT tag (it's also just a year)
+    bare = rec.recognise("The year 2000 was busy.")
+    pc_hits_bare = [s for s in bare if s.value == "2000"]
+    assert not pc_hits_bare, f"2000 should not tag without context, got: {[s.value for s in bare]}"
+
+
+def test_location_suburb_gazetteer_match():
+    """Suburb name 'Parramatta' tags as LOCATION."""
+    from pii_redactor.hybrid.au_org_loc import AULocationRecogniser
+
+    rec = AULocationRecogniser()
+    spans = rec.recognise("The court hearing in Parramatta starts at 9am.")
+    assert any(
+        s.category == PIICategory.LOCATION and s.value == "Parramatta"
+        for s in spans
+    ), f"Got: {[(s.value, s.category) for s in spans]}"
+
+
+def test_organisation_disabled_via_env(monkeypatch):
+    """PIIR_REGEX_ORGANISATION=false disables the organisation recogniser."""
+    from pii_redactor.hybrid.au_org_loc import supplement_org_loc
+
+    monkeypatch.setenv("PIIR_REGEX_ORGANISATION", "false")
+    monkeypatch.setenv("PIIR_REGEX_LOCATION", "false")
+    extra = supplement_org_loc(
+        "Services Australia is in Parramatta.", existing_spans=[]
+    )
+    assert extra == [], f"Expected empty when both disabled, got {extra}"
+
+
+def test_location_disabled_via_env(monkeypatch):
+    """PIIR_REGEX_LOCATION=false disables only the location recogniser."""
+    from pii_redactor.hybrid.au_org_loc import supplement_org_loc
+
+    monkeypatch.setenv("PIIR_REGEX_ORGANISATION", "true")
+    monkeypatch.setenv("PIIR_REGEX_LOCATION", "false")
+    extra = supplement_org_loc(
+        "Services Australia is in Parramatta.", existing_spans=[]
+    )
+    cats = {s.category for s in extra}
+    assert PIICategory.ORGANISATION in cats, cats
+    assert PIICategory.LOCATION not in cats, cats
+
+
+def test_org_loc_no_double_tag_with_address():
+    """If an ADDRESS span already covers 'Parramatta', the LOCATION recogniser
+    does not emit a duplicate tag at the same span. Preserves au_address recall.
+    """
+    from pii_redactor.hybrid.au_org_loc import supplement_org_loc
+
+    text = "Send mail to 123 Smith Street, Parramatta NSW 2150."
+    # Pretend address recogniser already tagged the full address.
+    addr_span = PIISpan(
+        category=PIICategory.ADDRESS,
+        start=text.index("123"),
+        end=text.index("2150") + 4,
+        value="123 Smith Street, Parramatta NSW 2150",
+        validator_passed=True,
+    )
+    extra = supplement_org_loc(text, existing_spans=[addr_span])
+    # No LOCATION span overlapping the address
+    for sp in extra:
+        if sp.category == PIICategory.LOCATION:
+            assert not (sp.start < addr_span.end and addr_span.start < sp.end), (
+                f"Location {sp.value!r} double-tags inside address span"
+            )
