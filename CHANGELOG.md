@@ -64,13 +64,23 @@ v0.4.0 ships as a **two-tier product**:
 ### Claim scope
 
 v0.4.0 is **NOT** a generalist global-PII redaction system. It is
-optimised for:
+intended for evaluation and deployment inside systems handling:
 
 - Australian government documents (OFFICIAL / OFFICIAL: Sensitive tier)
 - Clinical narratives (AU + general)
 - Regulatory identifier extraction with checksum validation
   (TFN mod-11, ABN mod-89, Medicare, IHI, ACN)
-- AU privacy law compliance (Privacy Act 1988, APP 11/11.2/12)
+- Pipelines supporting APP 11 / 11.2 / 12 workflows where validated by
+  the deploying organisation
+
+This release is **not** a PSPF, IRAP, clinical-safety, or legal
+compliance certification. Redaction output is not legal advice and not
+a guarantee of de-identification. Deployment is subject to the entity's
+PSPF, APP, security architecture, access-control, audit, retention, and
+risk-acceptance processes. Before production use on a new agency,
+hospital, research, or customer corpus, run a local acceptance benchmark
+on representative documents — published numbers are not a substitute
+for site-specific validation.
 
 For US/EU/UK PII at production-grade recall, use Tier 2 or evaluate
 Microsoft Presidio / AWS Comprehend Medical / Azure Cognitive Services
