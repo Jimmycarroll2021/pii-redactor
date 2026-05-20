@@ -39,6 +39,60 @@
   `backend=transformers_au_finetuned`, `adapter=redact-au-1b`.
 - Frozen-bench measurements added in `benchmarks/v0.4-vs-baseline.md`.
 
+### Product tiers
+
+v0.4.0 ships as a **two-tier product**:
+
+**Tier 1 — AU government + clinical (default)**
+- Backend: `transformers_au_finetuned`, llama disabled
+- Throughput: 6.37 d/s (Gretel-100) / 5.05 d/s (Medical-50) on RTX 4090
+- Sensitivity: 99.71% on Medical-50 with 0 leaks; 93.67% on Gretel-100
+  with 2 leaks (both non-AU social-handle usernames)
+- Suitable for: AU OFFICIAL / OFFICIAL: Sensitive workloads in gov +
+  healthcare + clinical research
+- Tested workloads: AU clinical narratives, AU regulatory identifiers
+  (TFN/ABN/Medicare/IHI/MRN/BSB/CRN), general PII
+
+**Tier 2 — General + social (opt-in)**
+- Backend: `transformers_au_finetuned` + llama vLLM second pass
+- Activate: `PIIR_LLAMA_BACKEND=vllm`
+- Throughput: 1.39 d/s (Gretel-100) / 1.08 d/s (Medical-50)
+- Sensitivity: 97.89% on Gretel-100, 100% on Medical-50, 0 leaks both
+- Suitable for: workloads with international phone formats, social
+  handles, foreign locality names, label-less ID strings
+
+### Claim scope
+
+v0.4.0 is **NOT** a generalist global-PII redaction system. It is
+optimised for:
+
+- Australian government documents (OFFICIAL / OFFICIAL: Sensitive tier)
+- Clinical narratives (AU + general)
+- Regulatory identifier extraction with checksum validation
+  (TFN mod-11, ABN mod-89, Medicare, IHI, ACN)
+- AU privacy law compliance (Privacy Act 1988, APP 11/11.2/12)
+
+For US/EU/UK PII at production-grade recall, use Tier 2 or evaluate
+Microsoft Presidio / AWS Comprehend Medical / Azure Cognitive Services
+PII Detection as alternatives.
+
+### Known limitations
+
+- 6 of 237 Gretel-100 FNs in Tier 1 are non-AU edge formats
+  (international phone+extension, social handles, single-word foreign
+  localities, label-less IDs). Tier 2 closes these. See
+  `benchmarks/v0.4-leak-taxonomy.md` for full taxonomy.
+- General PII regression eval on ai4privacy held-out: 91.05%
+  (vs untuned base 67.22%). Recall holds on US/UK style PII at
+  OFFICIAL-tier quality but not Wiest-equivalent.
+- Bench fixtures are small (Gretel-100, Medical-50). Confidence
+  intervals on the 99.71% Medical claim are wide (1 missed entity in
+  345 annotations).
+- Synthetic-vs-real generalisation gap is unmeasured. Training corpus is
+  ~95% synthetic (AU privacy + ethics constraints).
+- PROTECTED / SECRET / TOP SECRET / Cabinet classification is out of
+  scope; requires IRAP assessment (not yet held).
+
 ## [0.2.0] — 2026-05-19
 
 ### Added — hybrid transformers + AU validator backend
