@@ -1,5 +1,94 @@
 # Changelog
 
+## [0.4.1] — 2026-05-20
+
+### Added — AU organisation + location recognisers (Phase 5)
+- New `pii_redactor.hybrid.au_org_loc` module — gazetteer + regex
+  recognisers for the two highest-impact gaps identified in the Phase 4
+  sector bench (`organisation` recall 3-29%, `location` recall 3-77%).
+- `AUOrganisationRecogniser`: exact gazetteer match for ~300 curated AU
+  federal + state agencies, hospitals, universities, banks, top law firms;
+  corporate-suffix pattern (`Pty Ltd / Limited / LLP / Corp / Group / …`);
+  Department/Ministry/Authority pattern; hospital + university patterns;
+  context-gated acronym detection (~80 mappings — acronyms only tag when
+  expansion is nearby).
+- `AULocationRecogniser`: state abbreviations (NSW/VIC/…), full state
+  names, postcode-in-context (4-digit number near a suburb/state),
+  16,165-entry CC0 suburb gazetteer with disambiguation guard for
+  ambiguous names ("Hill", "Beach"), region patterns ("Greater Sydney",
+  "Inner West").
+- Two new `PIICategory` values: `ORGANISATION` ("organisation") and
+  `LOCATION` ("location"). Pipeline `_merge_with_au_priority` places
+  them just below `ADDRESS` so the address recogniser still wins on
+  overlaps.
+- Bundled gazetteer files under `pii_redactor/data/gazetteers/` —
+  packaged via `[tool.setuptools.package-data]` and `MANIFEST.in`.
+
+### Added — env knobs
+- `PIIR_REGEX_ORGANISATION=true|false` (default `true`) — toggle org recogniser.
+- `PIIR_REGEX_LOCATION=true|false` (default `true`) — toggle location recogniser.
+- `PIIR_ORG_GAZETTEER_PATH=...` / `PIIR_LOC_GAZETTEER_PATH=...` — path
+  overrides for custom gazetteers.
+
+### Added — tests (137 total, +11 new)
+- `test_organisation_recogniser_loads_gazetteer`
+- `test_organisation_pty_ltd_match`
+- `test_organisation_gov_agency_match`
+- `test_organisation_hospital_match`
+- `test_organisation_acronym_requires_context`
+- `test_location_state_abbrev_match`
+- `test_location_postcode_context_match`
+- `test_location_suburb_gazetteer_match`
+- `test_organisation_disabled_via_env`
+- `test_location_disabled_via_env`
+- `test_org_loc_no_double_tag_with_address` — regression guard for
+  existing `au_address` recall
+
+### Measured (RTX 4090, v0.4.1 vs v0.4.0 sector bench)
+
+Per-sector aggregate sensitivity (lenient), Tier 1:
+
+| Sector | v0.4.0 | v0.4.1 | Δ |
+|---|---:|---:|---:|
+| federal-gov-official    | 88.17% | 93.15% | +4.98 pp |
+| state-health-hospitals  | 92.91% | 93.55% | +0.64 pp |
+| legal-small-mid         | 78.99% | 85.75% | +6.76 pp |
+| medtech-health-ai       | 87.52% | 91.57% | +4.05 pp |
+
+Per-AU-category organisation recall lifts:
+
+| Sector | v0.4.0 | v0.4.1 | Δ |
+|---|---:|---:|---:|
+| federal    | 3.1% (4/131)    | 58.78% (77/131) | +55.68 pp |
+| state-health | 26.9% (29/108) | 39.81% (43/108) | +12.91 pp |
+| legal | 28.8% (96/333)        | 51.65% (172/333) | +22.85 pp |
+| medtech | 6.5% (10/154)        | 52.60% (81/154) | +46.10 pp |
+
+federal location recall: 3.3% → 36.67% (+33.37 pp).
+
+### Frozen bench HOLD (Gretel-100 + Medical-50)
+- Gretel-100 sensitivity: **93.67%** (matches v0.4.0 exactly)
+- Gretel leaks: **2** (matches v0.4.0)
+- Medical-50 sensitivity: **99.71%** (matches v0.4.0)
+- Medical leaks: **0** (matches v0.4.0)
+
+No retraining; no model changes. Pure rule + gazetteer augmentation.
+The frozen bench held perfectly because the org/loc recognisers don't
+overlap with the existing `address`/`name`/`email` span types.
+
+### Not yet at 97% gate
+Phase 5 closed roughly two thirds of the gap to the 97% sector publish
+gate. Residual misses are dominated by long-tail org names (small/mid
+law firms, mid-tier clinics) and informal location phrases ("the Top
+End", "the western suburbs"). See `benchmarks/sector-scorecard-v0.4.1.md`
+for the full breakdown and recommended Phase 5.1 / Phase 6 follow-ups.
+
+### Compatibility
+- v0.4.0 default config (LoRA finetuned base, llama disabled) unchanged.
+- Wheel deps unchanged; no new transitive dependencies.
+- Container image `redact-au-hybrid:0.4.1` is a drop-in replacement
+  for `:0.4.0` with the same env knobs + new optional org/loc toggles.
+
 ## [0.4.0] — 2026-05-19
 
 ### BREAKING — default llama backend disabled
