@@ -4,9 +4,19 @@ Pre-ingestion PII de-identification for Australian government data.
 
 Implements the methodology from Wiest et al., *Deidentifying Medical Documents with Local, Privacy-Preserving Large Language Models* (NEJM AI, 2024), extended with Australian Commonwealth identifier detection and checksum validation.
 
-[![Tests](https://img.shields.io/badge/tests-38%2F38%20passing-brightgreen)](#testing)
+[![Tests](https://img.shields.io/badge/tests-137%2F137%20passing-brightgreen)](#testing)
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue)](#)
 [![License](https://img.shields.io/badge/license-MIT-green)](#)
+[![HF Hub](https://img.shields.io/badge/HF%20Hub-redact--au--1b-yellow)](https://huggingface.co/JimmyBhoy/redact-au-1b)
+
+> **v0.4.1 — AU organisation + location recognisers (2026-05-20).** Per-sector
+> sensitivity lift +0.64 to +6.76 pp across federal/state-health/legal/medtech
+> benches; organisation per-category recall +13-56 pp; location +33 pp on
+> federal. Frozen Wiest bench held exactly (Medical 99.71%/0 leaks, Gretel
+> 93.67%/2 leaks). The companion LoRA adapter
+> [`JimmyBhoy/redact-au-1b`](https://huggingface.co/JimmyBhoy/redact-au-1b)
+> ships on HF Hub (apache-2.0) for the two-tier AU-government + clinical
+> deployment path. See `CHANGELOG.md` for the full v0.4.1 changeset.
 
 ## What it does
 
