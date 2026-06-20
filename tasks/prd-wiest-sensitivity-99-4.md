@@ -164,4 +164,4 @@ The work also fixes 2 live unit-test regressions (phone-vs-ABN regex over-match)
 - Baseline run: `scale-tests/runs/20260517-150856-ollama-qwen25-gretel100-wiest-bench/summary.json`
 - 30-doc preliminary: `scale-tests/runs/20260517-145854-ollama-qwen25-gretel30/`
 - Mock baseline: `scale-tests/runs/20260517-145837-mock-gretel500-baseline/`
-- README claim location: `C:/Users/j_car/KnowledgeGraph/tools/pii-redactor/README.md:25`
+- README claim location: `C:/Users/j_car/.00xxAIProjectsxx00/Redact-au/libs/pii-redactor/README.md:25`

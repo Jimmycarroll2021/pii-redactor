@@ -266,6 +266,6 @@ MIT
 
 ## Local project consolidation
 
-This project is now consolidated under `C:\Users\j_car\KnowledgeGraph\tools\pii-redactor`.
+This source checkout is now consolidated under `C:\Users\j_car\.00xxAIProjectsxx00\Redact-au\libs\pii-redactor`.
 
 Related reference material is kept in `docs/references/`, including the NEJM AI LLM-Anonymizer paper used to ground the de-identification design.

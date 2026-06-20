@@ -25,7 +25,7 @@ $env:PIIR_FAIL_ON_LLM_ERROR = "true"
 ## Build
 
 ```powershell
-Set-Location C:\Users\j_car\KnowledgeGraph\tools\pii-redactor
+Set-Location C:\Users\j_car\.00xxAIProjectsxx00\Redact-au\libs\pii-redactor
 docker build -f docker\Dockerfile -t pii-redactor-api:kg-rag-productization .
 ```
 
@@ -81,7 +81,7 @@ Expected result:
 Use the secure wrapper instead of direct source registration when source material may contain PII:
 
 ```powershell
-Set-Location C:\Users\j_car\KnowledgeGraph
+Set-Location C:\Users\j_car\.00xxAIProjectsxx00\Redact-au
 
 $env:PIIR_BACKEND = "ollama"
 $env:PIIR_OLLAMA_URL = "http://127.0.0.1:11434"
