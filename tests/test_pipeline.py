@@ -59,14 +59,20 @@ def test_redacted_text_contains_no_originals(tmp_path):
     assert "[REDACTED_ABN_001]" in result.redacted_text
 
 
-def test_invalid_checksums_filtered_out(tmp_path):
+def test_invalid_checksum_no_residue_leak(tmp_path):
+    # 999 999 999 fails the TFN/ACN checksums. Fail-closed: the token must be
+    # redacted (not left as cleartext residue from a shorter overlapping match)
+    # and the document flagged needs_review. Regression for VULN-01 / SEC-01:
+    # the old behaviour dropped the failed span and leaked the tail "999".
     pipeline = _build_test_pipeline(tmp_path)
-    # 999 999 999 is invalid TFN (fails checksum)
     text = "Bad TFN: 999 999 999"
     result = pipeline.process_document(text)
 
-    tfn_spans = [s for s in result.spans if s.category.value == "tfn"]
-    assert len(tfn_spans) == 0
+    assert "999 999 999" not in result.redacted_text
+    # No digit run of the original value may survive anywhere in the output.
+    assert "999" not in result.redacted_text
+    assert result.needs_review is True
+    assert any(s.needs_review for s in result.spans)
 
 
 def test_returned_spans_have_no_original_values(tmp_path):

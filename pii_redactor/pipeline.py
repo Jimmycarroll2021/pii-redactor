@@ -61,6 +61,7 @@ class Pipeline:
             spans=safe_spans,
             audit_id=audit_id,
             model_used=self.model_name,
+            needs_review=any(s.needs_review for s in safe_spans),
         )
 
     def process_document(

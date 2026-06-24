@@ -41,9 +41,11 @@ def _metadata_row(
     output_path: Path,
     result,
     policy_name: str,
-    gate_status: str,
 ) -> dict:
     categories = sorted({span.category.value for span in result.spans})
+    # Honest gate status: a document carrying fail-closed "suspected" redactions
+    # (ID-shaped tokens that failed their checksum) must NOT report a clean pass.
+    needs_review = bool(getattr(result, "needs_review", False))
     return {
         "source_id": source_id,
         "input_path": str(input_path),
@@ -53,7 +55,8 @@ def _metadata_row(
         "pii_categories": categories,
         "redaction_policy": policy_name,
         "model_used": result.model_used,
-        "gate_status": gate_status,
+        "needs_review": needs_review,
+        "gate_status": "review" if needs_review else "pass",
         "processed_at": result.processed_at.isoformat(),
     }
 
@@ -80,7 +83,6 @@ def cmd_redact(args: argparse.Namespace) -> int:
         args.output,
         result,
         policy_name,
-        "pass",
     )
     if args.metadata:
         args.metadata.parent.mkdir(parents=True, exist_ok=True)
@@ -112,7 +114,7 @@ def cmd_ingest(args: argparse.Namespace) -> int:
             output_path.parent.mkdir(parents=True, exist_ok=True)
             output_path.write_text(result.redacted_text, encoding="utf-8")
             manifest_rows.append(
-                _metadata_row(source_id, source_file, output_path, result, policy_name, "pass")
+                _metadata_row(source_id, source_file, output_path, result, policy_name)
             )
         except Exception as exc:  # noqa: BLE001
             failures.append({"input_path": str(source_file), "error": str(exc)})
@@ -122,16 +124,27 @@ def cmd_ingest(args: argparse.Namespace) -> int:
     with args.manifest.open("w", encoding="utf-8") as handle:
         for row in manifest_rows:
             handle.write(json.dumps(row, sort_keys=True) + "\n")
+    review_rows = [r for r in manifest_rows if r.get("gate_status") == "review"]
+    if failures or not manifest_rows:
+        status = "FAIL"
+    elif review_rows:
+        status = "REVIEW"
+    else:
+        status = "PASS"
     summary = {
-        "status": "PASS" if not failures and manifest_rows else "FAIL",
+        "status": status,
         "policy": policy_name,
         "documents_processed": len(manifest_rows),
+        "needs_review_documents": len(review_rows),
         "failures": failures,
         "manifest": str(args.manifest),
         "output": str(output_root),
     }
     print(json.dumps(summary, sort_keys=True))
-    return 0 if summary["status"] == "PASS" else 1
+    # Ingest is a transform step: hard failures exit non-zero; a REVIEW outcome
+    # (suspected redactions present, but all redacted) still exits 0 so bulk
+    # transforms complete — the enforcing `gate` command blocks on review.
+    return 1 if status == "FAIL" else 0
 
 
 def cmd_gate(args: argparse.Namespace) -> int:
@@ -154,10 +167,21 @@ def cmd_gate(args: argparse.Namespace) -> int:
                 for line in ingest_args.manifest.read_text(encoding="utf-8").splitlines()
                 if line.strip()
             ]
+        review_total = sum(1 for row in rows if row.get("gate_status") == "review")
+        if code != 0:
+            gate_state = "FAIL"
+        elif review_total:
+            # The gate is the enforcement point: suspected (failed-checksum)
+            # redactions must be human-reviewed before the doc is cleared.
+            gate_state = "REVIEW"
+            code = 1
+        else:
+            gate_state = "PASS"
         summary = {
-            "status": "PASS" if code == 0 else "FAIL",
+            "status": gate_state,
             "policy": policy_name,
             "documents_processed": len(rows),
+            "needs_review_documents": review_total,
             "pii_count_total": sum(row["pii_count"] for row in rows),
             "pii_categories": sorted({cat for row in rows for cat in row["pii_categories"]}),
         }
