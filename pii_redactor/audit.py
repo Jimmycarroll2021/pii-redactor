@@ -93,18 +93,27 @@ class AuditLog:
         with self.path.open("a", encoding="utf-8") as f:
             for span in spans:
                 encrypted_value = ""
-                if self._fernet and span.value:
-                    encrypted_value = self._fernet.encrypt(
-                        span.value.encode("utf-8")
-                    ).decode("ascii")
+                if self._fernet:
+                    # SEC-05: bundle the value AND precise offsets into ONE
+                    # encrypted token. The cleartext row must not localise PII
+                    # against the source document; offsets are recoverable only
+                    # via reidentify() with the key.
+                    payload = json.dumps(
+                        {"value": span.value, "span_start": span.start, "span_end": span.end}
+                    )
+                    encrypted_value = self._fernet.encrypt(payload.encode("utf-8")).decode("ascii")
 
                 entry = AuditEntry(
                     audit_id=audit_id,
                     document_id=document_id,
                     timestamp=timestamp,
                     category=span.category.value,
-                    span_start=span.start,
-                    span_end=span.end,
+                    # Offsets withheld from cleartext (SEC-05 offset oracle): -1 =
+                    # "not disclosed; recover via reidentify()". Category alone
+                    # discloses no more than the placeholders already in the
+                    # redacted output.
+                    span_start=-1,
+                    span_end=-1,
                     value_encrypted=encrypted_value,
                     placeholder=span.placeholder or "",
                     confidence=span.confidence,
@@ -136,9 +145,22 @@ class AuditLog:
                     continue
                 value = None
                 if entry.get("value_encrypted"):
-                    value = self._fernet.decrypt(
+                    decrypted = self._fernet.decrypt(
                         entry["value_encrypted"].encode("ascii")
                     ).decode("utf-8")
+                    # New format: JSON {value, span_start, span_end}.
+                    # Legacy format: the raw value as a bare string.
+                    try:
+                        payload = json.loads(decrypted)
+                    except (json.JSONDecodeError, ValueError):
+                        payload = None
+                    if isinstance(payload, dict) and "value" in payload:
+                        value = payload.get("value")
+                        if payload.get("span_start") is not None:
+                            entry["span_start"] = payload["span_start"]
+                            entry["span_end"] = payload["span_end"]
+                    else:
+                        value = decrypted
                 entry["value"] = value
                 out.append(entry)
         return out
