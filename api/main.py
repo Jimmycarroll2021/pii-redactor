@@ -12,6 +12,9 @@ Endpoints:
 - GET  /info            Backend, model name, version
 
 API key authentication via the X-API-Key header. Set PIIR_API_KEY in env.
+Auth is fail-closed: with no key set, redaction endpoints reject (401) unless
+PIIR_ALLOW_NO_AUTH=true is set for explicit local-only use. /reidentify needs a
+dedicated PIIR_REIDENTIFY_API_KEY (no fallback to PIIR_API_KEY).
 
 Scale notes
 -----------
@@ -30,7 +33,6 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
-import secrets
 import threading
 import time
 from typing import Optional
@@ -38,7 +40,7 @@ from typing import Optional
 from fastapi import Depends, FastAPI, Header, HTTPException, status
 from pydantic import BaseModel, Field
 
-from pii_redactor import Config, __version__, build_pipeline
+from pii_redactor import Config, __version__, build_pipeline, http_auth
 from pii_redactor.detector import PIIExtractionError
 from pii_redactor.pipeline import Pipeline
 
@@ -89,10 +91,6 @@ def _env_truthy(name: str) -> bool:
     return os.environ.get(name, "").lower() in {"1", "true", "yes", "on"}
 
 
-def _compare_key(provided: str, expected: str) -> bool:
-    return secrets.compare_digest(provided.encode("utf-8"), expected.encode("utf-8"))
-
-
 def _env_int(name: str, default: int) -> int:
     try:
         return int(os.environ.get(name, str(default)))
@@ -134,25 +132,15 @@ def _record_error() -> None:
 
 
 def require_api_key(x_api_key: str = Header(default="")) -> None:
-    expected = os.environ.get("PIIR_API_KEY")
-    if not expected:
-        return  # No key set means auth is disabled. Loud warning at startup.
-    if not _compare_key(x_api_key, expected):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or missing X-API-Key header.",
-        )
+    error = http_auth.redaction_auth_error(x_api_key)
+    if error:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=error)
 
 
 def require_reidentify_api_key(x_api_key: str = Header(default="")) -> None:
-    expected = os.environ.get("PIIR_REIDENTIFY_API_KEY") or os.environ.get("PIIR_API_KEY")
-    if not expected:
-        return
-    if not _compare_key(x_api_key, expected):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or missing re-identification API key.",
-        )
+    error = http_auth.reidentify_auth_error(x_api_key)
+    if error:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=error)
 
 
 # ----------------------------------------------------------------- schemas
@@ -409,15 +397,31 @@ async def startup() -> None:
                 + ", ".join(missing)
             )
 
-    if not os.environ.get("PIIR_API_KEY"):
-        logger.warning(
-            "PIIR_API_KEY not set. The redaction API is unauthenticated. "
-            "Set this in production."
+    # Fail-closed on a non-loopback (externally reachable) bind without auth.
+    if http_auth.public_bind_without_auth():
+        raise RuntimeError(
+            "PIIR_PUBLIC_BIND=true requires PIIR_API_KEY: refusing to serve an "
+            "unauthenticated redaction API on a non-loopback bind. Set PIIR_API_KEY, "
+            "or PIIR_ALLOW_NO_AUTH=true to override (NOT for production)."
         )
-    if os.environ.get("PIIR_API_KEY") and not os.environ.get("PIIR_REIDENTIFY_API_KEY"):
+
+    if not os.environ.get("PIIR_API_KEY"):
+        if _auth_disabled_ok():
+            logger.warning(
+                "PIIR_API_KEY not set and PIIR_ALLOW_NO_AUTH=true: the redaction API "
+                "is UNAUTHENTICATED. Local-only use only; never expose this bind."
+            )
+        else:
+            logger.warning(
+                "PIIR_API_KEY not set. Redaction endpoints will reject requests with "
+                "401 (fail-closed). Set PIIR_API_KEY, or PIIR_ALLOW_NO_AUTH=true for "
+                "explicit local-only use."
+            )
+    if not os.environ.get("PIIR_REIDENTIFY_API_KEY"):
         logger.warning(
-            "PIIR_REIDENTIFY_API_KEY not set. /reidentify falls back to PIIR_API_KEY. "
-            "Set a separate key for production re-identification workflows."
+            "PIIR_REIDENTIFY_API_KEY not set. /reidentify requires a dedicated key "
+            "(it does NOT fall back to PIIR_API_KEY) and will reject with 401 unless "
+            "PIIR_ALLOW_NO_AUTH=true."
         )
     max_concurrency = int(os.environ.get("PIIR_MAX_CONCURRENCY", "8"))
     logger.info("PII Redactor started. max_concurrency=%d", max_concurrency)
