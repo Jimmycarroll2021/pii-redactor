@@ -176,19 +176,26 @@ PATTERNS: dict[PIICategory, re.Pattern[str]] = {
         r"|04\d{2}[\s.-]?\d{3}[\s.-]?\d{3}"
         # Generic international with leading + and parens, with optional extension.
         r"|\+\d{1,3}[\s.-]?\(\d{2,4}\)[\s.-]?\d{3,5}[\s.-]?\d{3,4}(?:\s*(?:x|ext\.?|extension)\s*\d{1,6})?"
+        # International trunk-prefix form: +CC(0)AREA LOCAL (e.g. +44(0)20 7496 0765).
+        r"|\+\d{1,3}\(0\)[\s.-]?\d{1,4}[\s.-]?\d{3,4}[\s.-]?\d{3,4}"
         # Generic international with leading + and dotted/dashed groups (e.g. +1 555-123-4567).
         r"|\+\d{1,3}[\s.-]?\d{3,5}[\s.-]\d{3,4}(?:[\s.-]\d{2,6})?(?:\s*(?:x|ext\.?|extension)\s*\d{1,6})?"
+        # Broad international fallback: +CC then 2-4 separator-led groups of 2-5 digits
+        # (e.g. +27 68 670 7513, +91-39941 98087). The leading + keeps FP risk low.
+        r"|\+\d{1,3}(?:[\s.-]\d{2,5}){2,4}"
         # Leading country digit + bracketed area: 1 (XXX) XXX-XXXX.
         r"|\d[\s.-]?\(\d{2,4}\)[\s.-]?\d{3,5}[\s.-]?\d{3,4}(?:\s*(?:x|ext\.?|extension)\s*\d{1,6})?"
         # Bracketed area code with any separator: (XXX) XXX-XXXX or (XXXX) XXX XXXX, optional ext.
         r"|\(\d{2,4}\)[\s.-]?\d{3,5}[\s.-]?\d{3,4}(?:\s*(?:x|ext\.?|extension)\s*\d{1,6})?"
         # Dashed: XXX-XXX-XXXX or XXXX-XXXX.
         r"|\d{3}-\d{3}-\d{4}"
-        r"|\d{4}-\d{4}"
+        # 8-digit local number, space/dot/dash grouped (e.g. 9423 5043, 9218.0642).
+        r"|\d{4}[\s.-]\d{4}"
         # Dotted: XXX.XXX.XXXX.
         r"|\d{3}\.\d{3}\.\d{4}"
-        # UK-style 11-digit bare: 028 9018 0925 (3-4-4 leading 0).
-        r"|0\d{2}[\s]\d{4}[\s]\d{4}"
+        # Leading-0 national, space/dot grouped: 3-4-4, 4-3-4 or 4-4-4
+        # (e.g. 028 9018 0925, 0151 496 0156, 0701 369 4303).
+        r"|0\d{2,4}[\s.]\d{3,4}[\s.]\d{3,4}"
         r")(?!\d)",
         re.IGNORECASE,
     ),
