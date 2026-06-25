@@ -336,7 +336,11 @@ def _try_checksum_validators(value: str) -> tuple[PIICategory, bool] | None:
             if validator(value):
                 return category, True
         except Exception as exc:  # noqa: BLE001
-            logger.debug("Validator %s threw on '%s': %s", category, value, exc)
+            # Never log the raw candidate value (SEC-02): log category + length only.
+            logger.debug(
+                "Validator %s raised on a %d-char candidate: %s",
+                category, len(value or ""), exc,
+            )
             continue
     # Note: digits-only fallback intentionally omitted — validators already
     # call _digits_only internally so they handle whitespace/dashes.
