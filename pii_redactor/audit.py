@@ -14,6 +14,7 @@ circumstances.
 Generate a key once: `python -c "from cryptography.fernet import Fernet; \
 print(Fernet.generate_key().decode())"`
 """
+
 from __future__ import annotations
 
 import json
@@ -63,6 +64,7 @@ class AuditLog:
         if encryption_key:
             try:
                 from cryptography.fernet import Fernet
+
                 self._fernet = Fernet(encryption_key.encode())
             except Exception as exc:  # noqa: BLE001
                 logger.error(
@@ -141,9 +143,10 @@ class AuditLog:
 
         tmp_path = self.path.with_name(self.path.name + ".purge-tmp")
         removed = 0
-        with self.path.open("r", encoding="utf-8") as src, tmp_path.open(
-            "w", encoding="utf-8"
-        ) as dst:
+        with (
+            self.path.open("r", encoding="utf-8") as src,
+            tmp_path.open("w", encoding="utf-8") as dst,
+        ):
             for line in src:
                 stripped = line.strip()
                 if not stripped:
@@ -151,8 +154,19 @@ class AuditLog:
                 try:
                     entry = json.loads(stripped)
                 except (json.JSONDecodeError, ValueError):
-                    # Preserve unparseable lines rather than silently dropping
-                    # an entry we cannot match — fail-closed on retention.
+                    # A corrupt line is indeterminate. Fail CLOSED on deletion:
+                    # if it references any targeted audit_id (substring), it may
+                    # carry that record's encrypted PII, so drop it — a deletion
+                    # request must not leave recoverable target bytes on disk.
+                    # Otherwise preserve it (don't destroy unrelated records) but
+                    # warn, so an incomplete-purge condition is never silent.
+                    if any(target in stripped for target in targets):
+                        removed += 1
+                        continue
+                    logger.warning(
+                        "purge: preserving an unparseable audit line that "
+                        "references no targeted audit_id"
+                    )
                     dst.write(stripped + "\n")
                     continue
                 if entry.get("audit_id") in targets:
@@ -170,8 +184,7 @@ class AuditLog:
         """
         if not self._fernet:
             raise RuntimeError(
-                "Cannot re-identify without an encryption key. "
-                "Set PIIR_AUDIT_KEY before calling."
+                "Cannot re-identify without an encryption key. Set PIIR_AUDIT_KEY before calling."
             )
 
         out = []

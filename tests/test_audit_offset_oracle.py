@@ -95,6 +95,31 @@ def test_purge_destroys_reidentification_vault_entry(tmp_path) -> None:
     assert drop_id not in path.read_text(encoding="utf-8")
 
 
+def test_purge_fails_closed_on_corrupt_line_referencing_target(tmp_path) -> None:
+    """A-01 (stage2 re-audit): a corrupted vault line that still references a
+    targeted audit_id must be DROPPED on purge (fail-closed on deletion), not
+    preserved — otherwise a deletion request leaves recoverable target bytes."""
+    log_path = tmp_path / "vault.jsonl"
+    log_path.write_text(
+        # 1) valid kept line  2) corrupt line carrying the target id (truncated
+        # JSON)  3) corrupt line for an unrelated id (must be preserved)
+        '{"audit_id": "keep-1", "value_encrypted": "ok"}\n'
+        '{"audit_id": "drop-1", "value_encrypted": "TRUNCATED-PII\n'
+        '{"audit_id": "other-broken\n',
+        encoding="utf-8",
+    )
+    log = AuditLog(path=str(log_path), encryption_key=None, enabled=True)
+
+    removed = log.purge(["drop-1"])
+    assert removed == 1  # the corrupt target line was dropped
+
+    surviving = log_path.read_text(encoding="utf-8")
+    assert "drop-1" not in surviving  # target bytes gone
+    assert "TRUNCATED-PII" not in surviving  # encrypted payload gone
+    assert "keep-1" in surviving  # unrelated valid line preserved
+    assert "other-broken" in surviving  # unrelated corrupt line preserved
+
+
 def test_purge_is_safe_noop_when_empty_or_missing(tmp_path) -> None:
     log = AuditLog(path=str(tmp_path / "missing.jsonl"), encryption_key=None, enabled=True)
     assert log.purge(["anything"]) == 0  # file absent
