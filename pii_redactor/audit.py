@@ -19,6 +19,7 @@ from __future__ import annotations
 import json
 import logging
 import uuid
+from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -122,6 +123,44 @@ class AuditLog:
                 )
                 f.write(json.dumps(entry.__dict__) + "\n")
         return audit_id
+
+    def purge(self, audit_ids: Iterable[str]) -> int:
+        """Destroy every audit entry whose audit_id is in ``audit_ids``.
+
+        Returns the number of JSONL lines removed. This is the engine side of a
+        retention/deletion request (APP 11.2 "destroy or de-identify"): when a
+        document's redacted copy is deleted, the encrypted re-identification
+        vault entries that could reconstruct its original PII must be destroyed
+        with it. Atomic: a temp file is written then renamed over the original,
+        so a crash mid-purge cannot leave a half-written log. Safe no-op when
+        the log is disabled, the file is absent, or ``audit_ids`` is empty.
+        """
+        targets = {str(audit_id) for audit_id in audit_ids if audit_id}
+        if not targets or not self.path.exists():
+            return 0
+
+        tmp_path = self.path.with_name(self.path.name + ".purge-tmp")
+        removed = 0
+        with self.path.open("r", encoding="utf-8") as src, tmp_path.open(
+            "w", encoding="utf-8"
+        ) as dst:
+            for line in src:
+                stripped = line.strip()
+                if not stripped:
+                    continue
+                try:
+                    entry = json.loads(stripped)
+                except (json.JSONDecodeError, ValueError):
+                    # Preserve unparseable lines rather than silently dropping
+                    # an entry we cannot match — fail-closed on retention.
+                    dst.write(stripped + "\n")
+                    continue
+                if entry.get("audit_id") in targets:
+                    removed += 1
+                    continue
+                dst.write(stripped + "\n")
+        tmp_path.replace(self.path)
+        return removed
 
     def reidentify(self, audit_id: str) -> list[dict]:
         """Decrypt all entries for an audit_id. Requires the encryption key.
