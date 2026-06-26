@@ -24,6 +24,7 @@ narrative-heavy or low-confidence documents. Gate modes:
 The result plugs into the existing Pipeline class so the
 audit + redactor layers stay identical.
 """
+
 from __future__ import annotations
 
 import logging
@@ -32,7 +33,6 @@ import re
 
 from ..audit import AuditLog
 from ..config import Config
-from ..detector import PIIDetector
 from ..models import PIISpan
 from ..pipeline import Pipeline
 from ..redactor import Redactor
@@ -65,12 +65,12 @@ def _select_openai_backend(
             return FinetunedOpenAIBackend(adapter_path=adapter_path)
         except FileNotFoundError as exc:
             logger.warning(
-                "LoRA adapter unavailable (%s); falling back to base "
-                "openai/privacy-filter",
+                "LoRA adapter unavailable (%s); falling back to base openai/privacy-filter",
                 exc,
             )
             return OpenAIPrivacyFilter()
     return OpenAIPrivacyFilter()
+
 
 logger = logging.getLogger(__name__)
 
@@ -204,9 +204,7 @@ def should_invoke_llama(
     if openai_scores:
         below = [s for s in openai_scores if s < min_score]
         if len(below) >= 2:
-            return True, (
-                f"openai_low_conf={len(below)}<{min_score:.2f}"
-            )
+            return True, (f"openai_low_conf={len(below)}<{min_score:.2f}")
     return False, f"skip(tokens={n_tokens},spans={len(openai_scores)})"
 
 
@@ -245,13 +243,8 @@ class HybridDetector:
         # HTTP traffic — important because the default config no longer
         # ships with a llama endpoint reachable. Explicit injection (e.g.
         # for tests or custom deployments) takes precedence.
-        effective_llama_backend = (
-            llama_backend or os.environ.get("PIIR_LLAMA_BACKEND", "disabled")
-        )
-        if (
-            llama_pass is None
-            and effective_llama_backend == "disabled"
-        ):
+        effective_llama_backend = llama_backend or os.environ.get("PIIR_LLAMA_BACKEND", "disabled")
+        if llama_pass is None and effective_llama_backend == "disabled":
             self.use_llama_pass = False
             self.llama = None
             self.llama_backend_name = "disabled"
@@ -274,9 +267,7 @@ class HybridDetector:
                     else "custom"
                 )
             else:
-                self.llama_backend_name, self.llama = select_llama_backend(
-                    llama_backend
-                )
+                self.llama_backend_name, self.llama = select_llama_backend(llama_backend)
                 if self.llama is None:
                     self.use_llama_pass = False
         else:
@@ -324,21 +315,26 @@ class HybridDetector:
         if not text:
             return []
 
-        # 1a. Calibrated NER pass (GPU, openai/privacy-filter). Use the
-        # score-bearing variant so the gate can inspect per-span confidence.
-        # Fall back to plain predict() (score=1.0) for backends that don't
-        # implement the scored API — keeps test doubles + custom backends
-        # working unchanged.
-        scored_fn = getattr(self.openai, "predict_with_scores", None)
-        if callable(scored_fn):
-            scored = scored_fn(text)
-            raw_spans: list[tuple[str, int, int, str]] = [
-                (c, s, e, v) for (c, s, e, v, _sc) in scored
-            ]
-            openai_scores = [sc for (_c, _s, _e, _v, sc) in scored]
-        else:
-            raw_spans = list(self.openai.predict(text))
-            openai_scores = [1.0] * len(raw_spans)
+        # 1a. Calibrated NER pass (GPU substrate). Use the score-bearing variant
+        # so the gate can inspect per-span confidence. Fall back to plain
+        # predict() (score=1.0) for backends that don't implement the scored API.
+        # Wrapped: a substrate failure (cold model, OOM, unrecognised checkpoint
+        # architecture) must NOT abort detection and pass raw text through —
+        # audit 2026-06-26 caught exactly that fail-open. On failure we continue
+        # to the unconditional regex floor below, which keeps the stack >= mock.
+        raw_spans: list[tuple[str, int, int, str]] = []
+        openai_scores: list[float] = []
+        try:
+            scored_fn = getattr(self.openai, "predict_with_scores", None)
+            if callable(scored_fn):
+                scored = scored_fn(text)
+                raw_spans = [(c, s, e, v) for (c, s, e, v, _sc) in scored]
+                openai_scores = [sc for (_c, _s, _e, _v, sc) in scored]
+            else:
+                raw_spans = list(self.openai.predict(text))
+                openai_scores = [1.0] * len(raw_spans)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("substrate NER pass failed (regex floor only): %s", exc)
 
         # 1b. Narrative NER pass (GPU, llama3.1:8b via Ollama). Gated —
         # only invoked when the gate predicate says so. Soft-fails to
@@ -379,9 +375,27 @@ class HybridDetector:
         if self.use_regex_supplement:
             spans.extend(supplement_org_loc(text, spans))
 
+        # 3c. Unconditional regex floor — email/phone/AU IDs (validator-gated)
+        # from the same regex_first_pass the mock backend uses. This is the
+        # safety net that guarantees the hybrid stack is never WORSE than mock,
+        # even when the substrate model is cold/failed (audit 2026-06-26
+        # fail-open fix). The merge below dedupes any overlap with model spans.
+        if self.use_regex_supplement:
+            spans.extend(self._regex_floor(text))
+
         # 4. Merge / dedupe overlapping spans. Among equally-sized overlaps,
         # spans with a passing validator and AU-specific categories win.
         return self._merge_with_au_priority(spans)
+
+    @staticmethod
+    def _regex_floor(text: str) -> list[PIISpan]:
+        """Validator-gated regex spans (email/phone/AU IDs) as an always-on floor."""
+        from ..validators import regex_first_pass
+
+        return [
+            PIISpan(category=cat, start=start, end=end, value=value)
+            for cat, start, end, value in regex_first_pass(text)
+        ]
 
     @staticmethod
     def _merge_with_au_priority(spans: list[PIISpan]) -> list[PIISpan]:
@@ -406,7 +420,7 @@ class HybridDetector:
             PIICategory.BSB_ACCOUNT: 80,
             PIICategory.ADDRESS: 60,
             PIICategory.ORGANISATION: 55,  # v0.4.1
-            PIICategory.LOCATION: 55,      # v0.4.1
+            PIICategory.LOCATION: 55,  # v0.4.1
             PIICategory.NAME: 50,
             PIICategory.GENERIC_ID: 10,
         }
@@ -429,12 +443,10 @@ class HybridDetector:
                 continue
             last = merged[-1]
             if span.overlaps(last):
-                same_range = (span.start == last.start and span.end == last.end)
+                same_range = span.start == last.start and span.end == last.end
                 if same_range:
                     # Pick the more specific category
-                    if SPECIFICITY.get(span.category, 0) > SPECIFICITY.get(
-                        last.category, 0
-                    ):
+                    if SPECIFICITY.get(span.category, 0) > SPECIFICITY.get(last.category, 0):
                         merged[-1] = span
                     continue
                 # Different sized overlap: keep the original "prefer longer"
@@ -451,10 +463,7 @@ class HybridDetector:
     @property
     def name(self) -> str:
         if self.llama is not None:
-            return (
-                f"hybrid({self.openai.name}+{self.llama.name}"
-                f",gate={self.gate_mode})"
-            )
+            return f"hybrid({self.openai.name}+{self.llama.name},gate={self.gate_mode})"
         return f"hybrid({self.openai.name})"
 
     def gate_stats(self) -> dict:
@@ -466,9 +475,7 @@ class HybridDetector:
             "min_tokens": self.gate_min_tokens,
             "llama_invocations": self._gate_invocations,
             "llama_skips": self._gate_skips,
-            "llama_invoke_rate": (
-                self._gate_invocations / total if total > 0 else 0.0
-            ),
+            "llama_invoke_rate": (self._gate_invocations / total if total > 0 else 0.0),
             "documents_processed": total,
         }
         backend = getattr(self, "llama_backend_name", None)
@@ -532,6 +539,15 @@ def build_hybrid_pipeline(
         try:
             detector.warmup()
         except Exception as exc:  # noqa: BLE001
+            # Fail-closed switch (audit 2026-06-26): a substrate that won't load
+            # previously "continued cold" and silently emitted unredacted output
+            # for generic PII. With PIIR_REQUIRE_SUBSTRATE set, refuse to serve a
+            # degraded redactor — fail the deploy loudly instead.
+            if _env_truthy("PIIR_REQUIRE_SUBSTRATE", default=False):
+                raise RuntimeError(
+                    "substrate warmup failed and PIIR_REQUIRE_SUBSTRATE is set; "
+                    f"refusing to serve a cold/degraded redactor: {exc}"
+                ) from exc
             logger.warning("Hybrid detector warmup failed (continuing cold): %s", exc)
 
     redactor = Redactor(style=cfg.placeholder_style)
