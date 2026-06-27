@@ -385,23 +385,36 @@ class HybridDetector:
 
         # 4. Merge / dedupe overlapping spans. Among equally-sized overlaps,
         # spans with a passing validator and AU-specific categories win.
-        return self._merge_with_au_priority(spans)
+        return self._merge_with_au_priority(spans, text)
 
     @staticmethod
     def _regex_floor(text: str) -> list[PIISpan]:
-        """Validator-gated regex spans (email/phone/AU IDs) as an always-on floor."""
+        """Validator-gated regex spans (email/phone/AU IDs) as an always-on floor.
+
+        Applies the same validator + fail-closed ``needs_review`` logic the
+        stock ``PIIDetector`` uses (DEFECT #3 fix): an AU ID-shaped token whose
+        checksum fails is retained, flagged ``validator_passed=False`` /
+        ``needs_review=True`` so the substrate path keeps mock's review signal.
+        """
+        from ..detector import PIIDetector
         from ..validators import regex_first_pass
 
-        return [
+        floor = [
             PIISpan(category=cat, start=start, end=end, value=value)
             for cat, start, end, value in regex_first_pass(text)
         ]
+        return PIIDetector._apply_validators(floor)
 
     @staticmethod
-    def _merge_with_au_priority(spans: list[PIISpan]) -> list[PIISpan]:
+    def _merge_with_au_priority(spans: list[PIISpan], text: str = "") -> list[PIISpan]:
         """Variant of PIIDetector._merge that prefers AU-specific categories
         on ties, so e.g. a regex USERNAME hit beats an OpenAI NAME hit at
         the same span.
+
+        ``text`` is the source document; it is used only to confirm that a
+        validated AU span which is shorter than an overlapping generic span
+        leaves no PII (alphanumeric) characters uncovered before letting the AU
+        span win (DEFECT #2 coverage guard).
         """
         from ..models import PIICategory
 

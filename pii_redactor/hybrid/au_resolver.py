@@ -38,6 +38,7 @@ The `resolve_account_numbers` entry-point is pure: it accepts a list of
 candidate spans (typically just OpenAI's account_number + secret outputs)
 and returns a list of *new* PIISpans with the upgraded category.
 """
+
 from __future__ import annotations
 
 import logging
@@ -296,7 +297,7 @@ def _label_prior(text: str, start: int, end: int, window: int = 40) -> PIICatego
     for separator in base_separators:
         sep_idx = snippet.rfind(separator)
         if sep_idx != -1:
-            snippet = snippet[sep_idx + len(separator):]
+            snippet = snippet[sep_idx + len(separator) :]
 
     # Phase 2.x widening: when the value is MRN-shaped AND the snippet
     # contains an MRN keyword, force MEDICAL_RECORD_NUMBER even if a
@@ -318,10 +319,10 @@ def _label_prior(text: str, start: int, end: int, window: int = 40) -> PIICatego
 # The order matters: try the most-specific checksum first so a string that
 # happens to satisfy multiple shapes gets the strongest possible label.
 _CHECKSUM_VALIDATORS: list[tuple[PIICategory, Callable[[str], bool]]] = [
-    (PIICategory.ABN, validate_abn),         # 11 digits
+    (PIICategory.ABN, validate_abn),  # 11 digits
     (PIICategory.MEDICARE, validate_medicare),  # 10-11 digits
-    (PIICategory.TFN, validate_tfn),          # 9 digits
-    (PIICategory.ACN, validate_acn),          # 9 digits
+    (PIICategory.TFN, validate_tfn),  # 9 digits
+    (PIICategory.ACN, validate_acn),  # 9 digits
     # BSB is format-only (6 digits) so it must come LAST, otherwise a 6-digit
     # prefix of an ABN/Medicare/TFN would be claimed by BSB.
     (PIICategory.BSB_ACCOUNT, validate_bsb),
@@ -339,7 +340,9 @@ def _try_checksum_validators(value: str) -> tuple[PIICategory, bool] | None:
             # Never log the raw candidate value (SEC-02): log category + length only.
             logger.debug(
                 "Validator %s raised on a %d-char candidate: %s",
-                category, len(value or ""), exc,
+                category,
+                len(value or ""),
+                exc,
             )
             continue
     # Note: digits-only fallback intentionally omitted — validators already
@@ -383,6 +386,7 @@ def _try_structural_matchers(value: str) -> PIICategory | None:
 
 
 # --- Public API --------------------------------------------------------------
+
 
 def resolve_one(
     value: str,
@@ -488,14 +492,20 @@ def resolve_account_numbers(
                 category = PIICategory.GENERIC_ID
             validator_passed = None
 
+        # Fail-closed parity (DEFECT #3): an AU ID resolved with a FAILED
+        # checksum (validator_passed is False, e.g. a label-bound TFN whose
+        # digits don't pass) must carry needs_review so the substrate path
+        # cannot report a clean pass where mock would have flagged review.
+        needs_review = validator_passed is False
         out.append(
             PIISpan(
                 category=category,
                 start=start,
                 end=end,
                 value=value,
-                confidence=1.0,
+                confidence=0.5 if needs_review else 1.0,
                 validator_passed=validator_passed,
+                needs_review=needs_review,
             )
         )
     return out
