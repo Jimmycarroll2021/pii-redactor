@@ -6,6 +6,7 @@ transformers/torch (the GPU layer is exercised separately at bench time).
 A FakeOpenAIBackend feeds known spans through the orchestrator so the
 merge / resolution behaviour is fully unit-testable on CPU.
 """
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -33,6 +34,7 @@ class FakeOpenAIBackend:
 
 
 # --- au_resolver -------------------------------------------------------------
+
 
 def test_resolve_one_picks_tfn_via_checksum():
     cat, passed = resolve_one("123 456 782")
@@ -179,6 +181,7 @@ def test_resolve_account_numbers_batch():
 
 # --- regex_supplement --------------------------------------------------------
 
+
 def test_supplement_catches_username_openai_missed():
     text = "Account contact: tw_brian740 for billing."
     existing = []  # openai missed it entirely
@@ -215,6 +218,7 @@ def test_supplement_catches_au_phone_with_extension():
 
 # --- HybridDetector end-to-end (synchronous, no GPU) ------------------------
 
+
 def test_hybrid_detector_resolves_tfn_from_openai_account_number():
     text = "Customer TFN: 123 456 782."
     start = text.index("123 456 782")
@@ -230,9 +234,11 @@ def test_hybrid_detector_pipeline_redacts_text(tmp_path: Path):
     text = "Customer TFN: 123 456 782. Contact tw_brian740 at +61 2 6271 7000."
     tfn_start = text.index("123 456 782")
     tfn_end = tfn_start + len("123 456 782")
-    backend = FakeOpenAIBackend(canned=[
-        ("account_number", tfn_start, tfn_end, "123 456 782"),
-    ])
+    backend = FakeOpenAIBackend(
+        canned=[
+            ("account_number", tfn_start, tfn_end, "123 456 782"),
+        ]
+    )
     detector = HybridDetector(openai_backend=backend, use_llama_pass=False)
     pipeline = Pipeline(
         detector=detector,  # type: ignore[arg-type]
@@ -296,10 +302,20 @@ def test_openai_backend_honours_score_threshold(monkeypatch):
     class _FakePipe:
         def __call__(self, text):  # noqa: ARG002
             return [
-                {"entity_group": "private_person", "score": 0.95,
-                 "start": 0, "end": 4, "word": "Jane"},
-                {"entity_group": "private_address", "score": 0.05,
-                 "start": 5, "end": 9, "word": "Doe."},
+                {
+                    "entity_group": "private_person",
+                    "score": 0.95,
+                    "start": 0,
+                    "end": 4,
+                    "word": "Jane",
+                },
+                {
+                    "entity_group": "private_address",
+                    "score": 0.05,
+                    "start": 5,
+                    "end": 9,
+                    "word": "Doe.",
+                },
             ]
 
     monkeypatch.setenv("PIIR_HF_SCORE_THRESHOLD", "0.5")
@@ -419,10 +435,20 @@ def test_openai_backend_default_threshold_keeps_all(monkeypatch):
     class _FakePipe:
         def __call__(self, text):  # noqa: ARG002
             return [
-                {"entity_group": "private_person", "score": 0.95,
-                 "start": 0, "end": 4, "word": "Jane"},
-                {"entity_group": "private_address", "score": 0.05,
-                 "start": 5, "end": 9, "word": "Doe."},
+                {
+                    "entity_group": "private_person",
+                    "score": 0.95,
+                    "start": 0,
+                    "end": 4,
+                    "word": "Jane",
+                },
+                {
+                    "entity_group": "private_address",
+                    "score": 0.05,
+                    "start": 5,
+                    "end": 9,
+                    "word": "Doe.",
+                },
             ]
 
     monkeypatch.delenv("PIIR_HF_SCORE_THRESHOLD", raising=False)
@@ -453,9 +479,7 @@ def test_gate_mode_always_invokes_llama_even_on_short_doc():
     """PIIR_LLAMA_GATE=always reproduces v0.3.0 behaviour."""
     from pii_redactor.hybrid import should_invoke_llama
 
-    invoke, reason = should_invoke_llama(
-        "x", openai_scores=[0.99], mode="always"
-    )
+    invoke, reason = should_invoke_llama("x", openai_scores=[0.99], mode="always")
     assert invoke is True
     assert "always" in reason
 
@@ -466,8 +490,11 @@ def test_gate_confidence_skips_short_structured_doc():
 
     text = "TFN: 123 456 782."  # 4 tokens, no cue
     invoke, reason = should_invoke_llama(
-        text, openai_scores=[0.99], mode="confidence",
-        min_score=0.85, min_tokens=50,
+        text,
+        openai_scores=[0.99],
+        mode="confidence",
+        min_score=0.85,
+        min_tokens=50,
     )
     assert invoke is False
     assert "skip" in reason
@@ -483,8 +510,11 @@ def test_gate_confidence_invokes_on_multi_low_openai_scores():
     from pii_redactor.hybrid import should_invoke_llama
 
     invoke, reason = should_invoke_llama(
-        "A short doc", openai_scores=[0.7, 0.5, 0.99], mode="confidence",
-        min_score=0.85, min_tokens=200,
+        "A short doc",
+        openai_scores=[0.7, 0.5, 0.99],
+        mode="confidence",
+        min_score=0.85,
+        min_tokens=200,
     )
     assert invoke is True
     assert "openai_low_conf" in reason
@@ -495,8 +525,11 @@ def test_gate_confidence_skips_single_low_score_span():
     from pii_redactor.hybrid import should_invoke_llama
 
     invoke, reason = should_invoke_llama(
-        "A short doc with one span", openai_scores=[0.7, 0.99, 0.99],
-        mode="confidence", min_score=0.85, min_tokens=200,
+        "A short doc with one span",
+        openai_scores=[0.7, 0.99, 0.99],
+        mode="confidence",
+        min_score=0.85,
+        min_tokens=200,
     )
     assert invoke is False
     assert "skip" in reason
@@ -509,8 +542,11 @@ def test_gate_confidence_invokes_on_narrative_cue():
 
     text = "The patient was admitted to ward 3."
     invoke, reason = should_invoke_llama(
-        text, openai_scores=[], mode="confidence",
-        min_score=0.85, min_tokens=50,
+        text,
+        openai_scores=[],
+        mode="confidence",
+        min_score=0.85,
+        min_tokens=50,
     )
     assert invoke is True
     assert reason == "narrative_cue"
@@ -522,8 +558,11 @@ def test_gate_confidence_invokes_on_long_doc():
 
     text = "word " * 60  # 60 tokens, no narrative cue
     invoke, reason = should_invoke_llama(
-        text, openai_scores=[0.99], mode="confidence",
-        min_score=0.85, min_tokens=50,
+        text,
+        openai_scores=[0.99],
+        mode="confidence",
+        min_score=0.85,
+        min_tokens=50,
     )
     assert invoke is True
     assert "tokens=" in reason
@@ -535,8 +574,10 @@ def test_gate_confidence_invokes_on_mrn_label():
 
     invoke, reason = should_invoke_llama(
         "MRN-686040 Daniel Lee.",
-        openai_scores=[0.99], mode="confidence",
-        min_score=0.85, min_tokens=50,
+        openai_scores=[0.99],
+        mode="confidence",
+        min_score=0.85,
+        min_tokens=50,
     )
     assert invoke is True
     assert reason == "narrative_cue"
@@ -576,9 +617,7 @@ def test_hybrid_detector_gate_skips_llama_call_on_easy_doc():
     text = "Customer TFN: 123 456 782."
     start = text.index("123 456 782")
     end = start + len("123 456 782")
-    backend = FakeOpenAIBackend(
-        canned=[("account_number", start, end, "123 456 782")]
-    )
+    backend = FakeOpenAIBackend(canned=[("account_number", start, end, "123 456 782")])
 
     class _SpyLlama:
         name = "spy-llama"
@@ -617,12 +656,10 @@ def test_hybrid_detector_gate_invokes_llama_on_narrative_doc():
     behaviour matches v0.3.0 (name recovered)."""
     text = "Patient Daniel Lee, DOB 18/03/1986. MRN-686040."
     openai_canned = [
-        ("private_date", text.index("18/03/1986"),
-         text.index("18/03/1986") + 10, "18/03/1986"),
+        ("private_date", text.index("18/03/1986"), text.index("18/03/1986") + 10, "18/03/1986"),
     ]
     llama_canned = [
-        ("private_person", text.index("Daniel Lee"),
-         text.index("Daniel Lee") + 10, "Daniel Lee"),
+        ("private_person", text.index("Daniel Lee"), text.index("Daniel Lee") + 10, "Daniel Lee"),
     ]
     detector = HybridDetector(
         openai_backend=FakeOpenAIBackend(canned=openai_canned),
@@ -663,8 +700,7 @@ def test_hybrid_detector_gate_never_matches_v020_behaviour():
     """gate=never reproduces v0.2.0 (openai+regex only)."""
     text = "Patient Daniel Lee presented for follow-up."
     llama_canned = [
-        ("private_person", text.index("Daniel Lee"),
-         text.index("Daniel Lee") + 10, "Daniel Lee"),
+        ("private_person", text.index("Daniel Lee"), text.index("Daniel Lee") + 10, "Daniel Lee"),
     ]
     detector = HybridDetector(
         openai_backend=FakeOpenAIBackend(canned=[]),
@@ -698,10 +734,20 @@ def test_openai_backend_predict_with_scores_returns_score(monkeypatch):
     class _FakePipe:
         def __call__(self, text):  # noqa: ARG002
             return [
-                {"entity_group": "private_person", "score": 0.95,
-                 "start": 0, "end": 4, "word": "Jane"},
-                {"entity_group": "private_date", "score": 0.62,
-                 "start": 5, "end": 15, "word": "01/01/1990"},
+                {
+                    "entity_group": "private_person",
+                    "score": 0.95,
+                    "start": 0,
+                    "end": 4,
+                    "word": "Jane",
+                },
+                {
+                    "entity_group": "private_date",
+                    "score": 0.62,
+                    "start": 5,
+                    "end": 15,
+                    "word": "01/01/1990",
+                },
             ]
 
     monkeypatch.delenv("PIIR_HF_SCORE_THRESHOLD", raising=False)
@@ -723,6 +769,7 @@ def test_hybrid_detector_uses_predict_with_scores_when_available():
 
     class _LegacyBackend:
         """Backend that only implements predict() — no scored API."""
+
         name = "legacy"
 
         def predict(self, text):  # noqa: ARG002
@@ -1088,8 +1135,7 @@ def test_organisation_pty_ltd_match():
     rec = AUOrganisationRecogniser()
     spans = rec.recognise("The supplier is Acme Holdings Pty Ltd, based locally.")
     assert any(
-        s.category == PIICategory.ORGANISATION and "Acme" in (s.value or "")
-        for s in spans
+        s.category == PIICategory.ORGANISATION and "Acme" in (s.value or "") for s in spans
     ), f"Got: {[(s.value, s.category) for s in spans]}"
 
 
@@ -1112,8 +1158,7 @@ def test_organisation_hospital_match():
     rec = AUOrganisationRecogniser()
     spans = rec.recognise("Patient was transferred to Royal Melbourne Hospital.")
     assert any(
-        s.category == PIICategory.ORGANISATION
-        and "Royal Melbourne Hospital" in (s.value or "")
+        s.category == PIICategory.ORGANISATION and "Royal Melbourne Hospital" in (s.value or "")
         for s in spans
     )
 
@@ -1144,8 +1189,7 @@ def test_location_state_abbrev_match():
     rec = AULocationRecogniser()
     spans = rec.recognise("The office in NSW is closed today.")
     assert any(
-        s.category == PIICategory.LOCATION and s.value == "NSW"
-        and s.validator_passed is True
+        s.category == PIICategory.LOCATION and s.value == "NSW" and s.validator_passed is True
         for s in spans
     ), f"Got: {[(s.value, s.category, s.validator_passed) for s in spans]}"
 
@@ -1171,10 +1215,9 @@ def test_location_suburb_gazetteer_match():
 
     rec = AULocationRecogniser()
     spans = rec.recognise("The court hearing in Parramatta starts at 9am.")
-    assert any(
-        s.category == PIICategory.LOCATION and s.value == "Parramatta"
-        for s in spans
-    ), f"Got: {[(s.value, s.category) for s in spans]}"
+    assert any(s.category == PIICategory.LOCATION and s.value == "Parramatta" for s in spans), (
+        f"Got: {[(s.value, s.category) for s in spans]}"
+    )
 
 
 def test_organisation_disabled_via_env(monkeypatch):
@@ -1183,9 +1226,7 @@ def test_organisation_disabled_via_env(monkeypatch):
 
     monkeypatch.setenv("PIIR_REGEX_ORGANISATION", "false")
     monkeypatch.setenv("PIIR_REGEX_LOCATION", "false")
-    extra = supplement_org_loc(
-        "Services Australia is in Parramatta.", existing_spans=[]
-    )
+    extra = supplement_org_loc("Services Australia is in Parramatta.", existing_spans=[])
     assert extra == [], f"Expected empty when both disabled, got {extra}"
 
 
@@ -1195,9 +1236,7 @@ def test_location_disabled_via_env(monkeypatch):
 
     monkeypatch.setenv("PIIR_REGEX_ORGANISATION", "true")
     monkeypatch.setenv("PIIR_REGEX_LOCATION", "false")
-    extra = supplement_org_loc(
-        "Services Australia is in Parramatta.", existing_spans=[]
-    )
+    extra = supplement_org_loc("Services Australia is in Parramatta.", existing_spans=[])
     cats = {s.category for s in extra}
     assert PIICategory.ORGANISATION in cats, cats
     assert PIICategory.LOCATION not in cats, cats
@@ -1237,8 +1276,7 @@ def test_clinic_suffix_match():
     rec = AUOrganisationRecogniser()
     spans = rec.recognise("She was seen at Bayside Medical Centre last week.")
     assert any(
-        s.category == PIICategory.ORGANISATION
-        and "Bayside Medical Centre" in (s.value or "")
+        s.category == PIICategory.ORGANISATION and "Bayside Medical Centre" in (s.value or "")
         for s in spans
     ), f"Got: {[(s.value, s.category) for s in spans]}"
 
@@ -1250,16 +1288,12 @@ def test_legal_firm_suffix_match():
     rec = AUOrganisationRecogniser()
     spans1 = rec.recognise("Engaged Smith Brown Lawyers to file the claim.")
     assert any(
-        s.category == PIICategory.ORGANISATION
-        and "Lawyers" in (s.value or "")
-        for s in spans1
+        s.category == PIICategory.ORGANISATION and "Lawyers" in (s.value or "") for s in spans1
     ), f"Got: {[(s.value, s.category) for s in spans1]}"
 
     spans2 = rec.recognise("Per advice from Jones & Partners regarding the matter.")
     assert any(
-        s.category == PIICategory.ORGANISATION
-        and "Partners" in (s.value or "")
-        for s in spans2
+        s.category == PIICategory.ORGANISATION and "Partners" in (s.value or "") for s in spans2
     ), f"Got: {[(s.value, s.category) for s in spans2]}"
 
 
@@ -1270,9 +1304,7 @@ def test_informal_location_greater_sydney():
     rec = AULocationRecogniser()
     spans = rec.recognise("Cases reported across Greater Sydney rose this week.")
     assert any(
-        s.category == PIICategory.LOCATION
-        and "Greater Sydney" in (s.value or "")
-        for s in spans
+        s.category == PIICategory.LOCATION and "Greater Sydney" in (s.value or "") for s in spans
     ), f"Got: {[(s.value, s.category) for s in spans]}"
 
 
@@ -1283,9 +1315,7 @@ def test_informal_location_inner_west():
     rec = AULocationRecogniser()
     spans = rec.recognise("The Inner West has seen population growth.")
     assert any(
-        s.category == PIICategory.LOCATION
-        and "Inner West" in (s.value or "")
-        for s in spans
+        s.category == PIICategory.LOCATION and "Inner West" in (s.value or "") for s in spans
     ), f"Got: {[(s.value, s.category) for s in spans]}"
 
 
@@ -1294,11 +1324,8 @@ def test_informal_location_regional():
     from pii_redactor.hybrid.au_org_loc import AULocationRecogniser
 
     rec = AULocationRecogniser()
-    spans = rec.recognise(
-        "Travelled to the Yarra Valley and then up to the Pilbara."
-    )
-    values = {(s.value or "").lower() for s in spans
-              if s.category == PIICategory.LOCATION}
+    spans = rec.recognise("Travelled to the Yarra Valley and then up to the Pilbara.")
+    values = {(s.value or "").lower() for s in spans if s.category == PIICategory.LOCATION}
     assert any("yarra valley" in v for v in values), values
     assert any("pilbara" in v for v in values), values
 
@@ -1309,15 +1336,9 @@ def test_address_vs_location_disambiguation_full_address():
         _disambiguate_address_vs_location,
     )
 
-    assert _disambiguate_address_vs_location(
-        "23 Collins Street, Melbourne VIC 3000"
-    ) == "address"
-    assert _disambiguate_address_vs_location(
-        "77 Smith Street, Wollongong"
-    ) == "address"
-    assert _disambiguate_address_vs_location(
-        "1/45 Park Road, Brunswick"
-    ) == "address"
+    assert _disambiguate_address_vs_location("23 Collins Street, Melbourne VIC 3000") == "address"
+    assert _disambiguate_address_vs_location("77 Smith Street, Wollongong") == "address"
+    assert _disambiguate_address_vs_location("1/45 Park Road, Brunswick") == "address"
 
 
 def test_address_vs_location_disambiguation_standalone_suburb():
@@ -1353,15 +1374,9 @@ def test_address_vs_location_disambiguation_po_box():
         _disambiguate_address_vs_location,
     )
 
-    assert _disambiguate_address_vs_location(
-        "PO Box 123, Sydney NSW 2000"
-    ) == "address"
-    assert _disambiguate_address_vs_location(
-        "GPO Box 9990, Melbourne VIC 3001"
-    ) == "address"
-    assert _disambiguate_address_vs_location(
-        "Locked Bag 42, Parramatta"
-    ) == "address"
+    assert _disambiguate_address_vs_location("PO Box 123, Sydney NSW 2000") == "address"
+    assert _disambiguate_address_vs_location("GPO Box 9990, Melbourne VIC 3001") == "address"
+    assert _disambiguate_address_vs_location("Locked Bag 42, Parramatta") == "address"
 
 
 def test_address_vs_location_disambiguation_adversarial():
@@ -1373,9 +1388,245 @@ def test_address_vs_location_disambiguation_adversarial():
     # No street component → location
     assert _disambiguate_address_vs_location("Sydney") == "location"
     # Street + suburb → address
-    assert _disambiguate_address_vs_location(
-        "77 Smith Street, Wollongong"
-    ) == "address"
+    assert _disambiguate_address_vs_location("77 Smith Street, Wollongong") == "address"
+
+
+# ---------------------------------------------------------------------------
+# DEFECT #2 — validated AU-specific category wins over a merely-LONGER
+# generic substrate span (piiranha eats trailing punctuation so its
+# generic_id span runs ~1 char wider than the AU regex-floor span).
+# ---------------------------------------------------------------------------
+def _merge(spans, text=""):
+    return HybridDetector._merge_with_au_priority(spans, text)
+
+
+def test_merge_medicare_beats_one_char_longer_generic():
+    """Medicare regex span vs a 1-char-longer generic substrate span at the
+    same start → medicare wins, with its TIGHT offsets (no trailing punct)."""
+    text = "Medicare number 2957 20197 1. Reach"
+    mc_start = text.index("2957")
+    mc_end = mc_start + len("2957 20197 1")
+    medicare = PIISpan(
+        category=PIICategory.MEDICARE,
+        start=mc_start,
+        end=mc_end,
+        value="2957 20197 1",
+        validator_passed=True,
+    )
+    # piiranha generic span: same start, eats the trailing period (1 char wider)
+    generic = PIISpan(
+        category=PIICategory.GENERIC_ID,
+        start=mc_start,
+        end=mc_end + 1,
+        value="2957 20197 1.",
+        validator_passed=None,
+    )
+    out = _merge([generic, medicare], text)
+    cats = [s.category for s in out]
+    assert PIICategory.MEDICARE in cats, f"medicare must survive; got {cats}"
+    assert PIICategory.GENERIC_ID not in cats, f"generic must lose; got {cats}"
+    mc = next(s for s in out if s.category == PIICategory.MEDICARE)
+    assert (mc.start, mc.end) == (mc_start, mc_end), "tight offsets, no trailing punct"
+
+
+def test_merge_passport_beats_longer_username():
+    """Passport vs a 1-char-longer username substrate span (period overhang)
+    → passport wins. Passport has no checksum, so the same-range structural
+    rank carries it; here the generic eats a trailing period."""
+    text = "Passport PA1234567."
+    ps_start = text.index("PA1234567")
+    ps_end = ps_start + len("PA1234567")
+    passport = PIISpan(
+        category=PIICategory.PASSPORT,
+        start=ps_start,
+        end=ps_end,
+        value="PA1234567",
+        validator_passed=None,  # passport is structural, no checksum validator
+    )
+    # Same range as passport (the regex floor emits both at the tight range);
+    # username must lose to the AU-specific structural ID.
+    username = PIISpan(
+        category=PIICategory.USERNAME,
+        start=ps_start,
+        end=ps_end,
+        value="PA1234567",
+        validator_passed=None,
+    )
+    out = _merge([username, passport], text)
+    cats = [s.category for s in out]
+    assert PIICategory.PASSPORT in cats, f"passport must survive; got {cats}"
+    assert PIICategory.USERNAME not in cats, f"username must lose; got {cats}"
+
+
+def test_merge_acn_beats_longer_tfn_shaped_generic():
+    """ACN (validated) vs a 1-char-longer generic span (period overhang) and a
+    same-range failed-TFN reading → acn wins with tight offsets."""
+    text = "ACN 051 775 556. etc"
+    acn_start = text.index("051")
+    acn_end = acn_start + len("051 775 556")
+    acn = PIISpan(
+        category=PIICategory.ACN,
+        start=acn_start,
+        end=acn_end,
+        value="051 775 556",
+        validator_passed=True,
+    )
+    # Same digits also match the TFN regex but FAIL its checksum.
+    tfn = PIISpan(
+        category=PIICategory.TFN,
+        start=acn_start,
+        end=acn_end,
+        value="051 775 556",
+        validator_passed=False,
+        needs_review=True,
+    )
+    # A generic_id span that runs 1 char wider (grabs the trailing period).
+    generic = PIISpan(
+        category=PIICategory.GENERIC_ID,
+        start=acn_start,
+        end=acn_end + 1,
+        value="051 775 556.",
+        validator_passed=None,
+    )
+    out = _merge([generic, tfn, acn], text)
+    cats = [s.category for s in out]
+    assert PIICategory.ACN in cats, f"acn must survive; got {cats}"
+    assert PIICategory.GENERIC_ID not in cats, f"generic must lose; got {cats}"
+    assert PIICategory.TFN not in cats, f"failed-tfn reading must lose to acn; got {cats}"
+
+
+def test_merge_validated_au_does_not_strip_longer_pii_tail():
+    """Coverage guard: a validated-but-SHORTER AU span (e.g. a 6-digit BSB
+    prefix) must NOT win over a longer generic span whose overhang is REAL
+    digits — that would leak the uncovered tail. The longer span survives."""
+    text = "-> 123 456 789."
+    full_start = text.index("123")
+    full_end = full_start + len("123 456 789")
+    # piiranha emits a generic span covering the whole bad-checksum run + period
+    generic = PIISpan(
+        category=PIICategory.GENERIC_ID,
+        start=full_start,
+        end=full_end + 1,
+        value="123 456 789.",
+        validator_passed=None,
+        needs_review=False,
+    )
+    # Regex floor: bsb prefix '123 456' validates True but is SHORTER.
+    bsb = PIISpan(
+        category=PIICategory.BSB_ACCOUNT,
+        start=full_start,
+        end=full_start + len("123 456"),
+        value="123 456",
+        validator_passed=True,
+    )
+    # Regex floor: failed-tfn covers the full run, flagged needs_review.
+    tfn = PIISpan(
+        category=PIICategory.TFN,
+        start=full_start,
+        end=full_end,
+        value="123 456 789",
+        validator_passed=False,
+        needs_review=True,
+    )
+    out = _merge([generic, tfn, bsb], text)
+    # No surviving span may leave '789' uncovered.
+    covered = max((s.end for s in out), default=0)
+    assert covered >= full_end, (
+        f"PII tail must stay covered; spans={[(s.category.value, (s.start, s.end)) for s in out]}"
+    )
+    assert any(s.needs_review for s in out), "needs_review must survive"
+
+
+def test_merge_does_not_regress_longer_address_over_name():
+    """A genuinely longer ADDRESS span must still win over a shorter NAME —
+    the 'prefer longer' rule for real multi-token entities is preserved."""
+    text = "12 Smith Street, Parramatta NSW 2150"
+    name = PIISpan(category=PIICategory.NAME, start=3, end=8, value="Smith", validator_passed=None)
+    address = PIISpan(
+        category=PIICategory.ADDRESS, start=0, end=len(text), value=text, validator_passed=None
+    )
+    out = _merge([address, name], text)
+    cats = [s.category for s in out]
+    assert PIICategory.ADDRESS in cats, f"longer address must win; got {cats}"
+
+
+def test_merge_propagates_needs_review_across_overlap():
+    """DEFECT #3 sub-cause 3: needs_review must survive the merge even when
+    the kept span did not itself carry the flag."""
+    flagged = PIISpan(
+        category=PIICategory.GENERIC_ID,
+        start=0,
+        end=11,
+        value="123 456 789",
+        validator_passed=False,
+        needs_review=True,
+    )
+    longer = PIISpan(
+        category=PIICategory.ADDRESS,
+        start=0,
+        end=14,
+        value="123 456 789 xx",
+        validator_passed=None,
+        needs_review=False,
+    )
+    out = _merge([longer, flagged])
+    assert any(s.needs_review for s in out), "needs_review must survive the merge"
+
+
+# ---------------------------------------------------------------------------
+# DEFECT #3 — fail-closed parity on the substrate path: a bad-checksum AU ID
+# detected through the hybrid detector carries needs_review=True (mock did).
+# ---------------------------------------------------------------------------
+def test_hybrid_detector_bad_checksum_tfn_needs_review_via_regex_floor():
+    """End-to-end: HybridDetector.detect on a bad-checksum TFN → at least one
+    returned span has needs_review True (the regex floor applies the validator
+    + fail-closed logic the stock detector uses)."""
+    text = "TFN: 123 456 789"  # 123 456 789 fails the TFN checksum
+    backend = FakeOpenAIBackend(canned=[])  # substrate finds nothing
+    detector = HybridDetector(openai_backend=backend, use_llama_pass=False)
+    spans = detector.detect(text)
+    assert any(s.needs_review for s in spans), (
+        f"bad-checksum TFN must flag needs_review; got "
+        f"{[(s.category.value, s.validator_passed, s.needs_review) for s in spans]}"
+    )
+
+
+def test_hybrid_detector_bad_checksum_tfn_needs_review_via_resolver():
+    """Substrate path: a label-bound bad-checksum TFN resolved by the AU
+    resolver also carries needs_review (resolve_account_numbers fix)."""
+    text = "TFN: 999999999"
+    start = text.index("999999999")
+    end = start + 9
+    backend = FakeOpenAIBackend(canned=[("account_number", start, end, "999999999")])
+    detector = HybridDetector(
+        openai_backend=backend,
+        use_regex_supplement=False,  # isolate the resolver path
+        use_llama_pass=False,
+    )
+    spans = detector.detect(text)
+    tfn = [s for s in spans if s.category == PIICategory.TFN]
+    assert tfn, f"expected a TFN span; got {[s.category.value for s in spans]}"
+    assert any(s.needs_review and s.validator_passed is False for s in tfn)
+
+
+def test_au_resolver_sets_needs_review_on_failed_checksum():
+    """Unit: resolve_account_numbers sets needs_review when validator fails."""
+    text = "TFN: 999999999"
+    start = text.index("999999999")
+    spans = resolve_account_numbers([("account_number", start, start + 9, "999999999")], text)
+    tfn = next(s for s in spans if s.category == PIICategory.TFN)
+    assert tfn.validator_passed is False
+    assert tfn.needs_review is True
+
+
+def test_au_resolver_no_needs_review_on_valid_checksum():
+    """A valid checksum must NOT raise needs_review (no false review noise)."""
+    text = "TFN 123 456 782"
+    start = text.index("123 456 782")
+    spans = resolve_account_numbers([("account_number", start, start + 11, "123 456 782")], text)
+    tfn = next(s for s in spans if s.category == PIICategory.TFN)
+    assert tfn.validator_passed is True
+    assert tfn.needs_review is False
 
 
 def test_au_resolver_post_processes_private_address_label():
@@ -1385,21 +1636,21 @@ def test_au_resolver_post_processes_private_address_label():
 
     text = "Located in Melbourne. Send mail to 23 Collins Street, Melbourne VIC 3000."
     candidates = [
-        ("private_address",
-         text.index("Melbourne"),
-         text.index("Melbourne") + len("Melbourne"),
-         "Melbourne"),
-        ("private_address",
-         text.index("23 Collins Street, Melbourne VIC 3000"),
-         text.index("23 Collins Street, Melbourne VIC 3000")
-         + len("23 Collins Street, Melbourne VIC 3000"),
-         "23 Collins Street, Melbourne VIC 3000"),
+        (
+            "private_address",
+            text.index("Melbourne"),
+            text.index("Melbourne") + len("Melbourne"),
+            "Melbourne",
+        ),
+        (
+            "private_address",
+            text.index("23 Collins Street, Melbourne VIC 3000"),
+            text.index("23 Collins Street, Melbourne VIC 3000")
+            + len("23 Collins Street, Melbourne VIC 3000"),
+            "23 Collins Street, Melbourne VIC 3000",
+        ),
     ]
     spans = resolve_account_numbers(candidates, text)
     cats = [s.category for s in spans]
-    assert PIICategory.LOCATION in cats, (
-        f"Standalone 'Melbourne' should be LOCATION; got {cats}"
-    )
-    assert PIICategory.ADDRESS in cats, (
-        f"Full street address should be ADDRESS; got {cats}"
-    )
+    assert PIICategory.LOCATION in cats, f"Standalone 'Melbourne' should be LOCATION; got {cats}"
+    assert PIICategory.ADDRESS in cats, f"Full street address should be ADDRESS; got {cats}"

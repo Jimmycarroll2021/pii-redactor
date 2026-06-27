@@ -437,15 +437,105 @@ class HybridDetector:
             PIICategory.NAME: 50,
             PIICategory.GENERIC_ID: 10,
         }
+
+        # DEFECT #2: validated AU-specific structured IDs must not lose to a
+        # merely-LONGER generic substrate span. piiranha emits a `generic_id`
+        # span that runs ~1 char wider than the AU regex floor (it eats
+        # trailing punctuation); the old unconditional "prefer longer" let that
+        # generic span clobber a checksum-validated medicare/passport/acn span.
+        # These are the AU IDs whose category carries a checksum/structural
+        # validation signal worth protecting.
+        AU_SPECIFIC: frozenset[PIICategory] = frozenset(
+            {
+                PIICategory.TFN,
+                PIICategory.ABN,
+                PIICategory.ACN,
+                PIICategory.MEDICARE,
+                PIICategory.BSB_ACCOUNT,
+                PIICategory.PASSPORT,
+                PIICategory.DRIVER_LICENCE,
+                PIICategory.CRN,
+                PIICategory.HEALTHCARE_IDENTIFIER,
+                PIICategory.MEDICAL_RECORD_NUMBER,
+            }
+        )
+        # Generic substrate categories that should yield to a validated AU
+        # span even when they happen to span one extra (punctuation) char.
+        GENERIC_LOSERS: frozenset[PIICategory] = frozenset(
+            {
+                PIICategory.GENERIC_ID,
+                PIICategory.NAME,
+                PIICategory.USERNAME,
+            }
+        )
+
+        def _overhang_is_punctuation(a: PIISpan, b: PIISpan) -> bool:
+            """True if every char of `b` lying OUTSIDE `a`'s range is non-PII
+            (not alphanumeric) — i.e. `b` is just `a` plus trailing/leading
+            punctuation or whitespace. Conservative: if we have no source text,
+            require full coverage instead (return False on any overhang)."""
+            lead = text[b.start : a.start] if b.start < a.start else ""
+            tail = text[a.end : b.end] if b.end > a.end else ""
+            overhang = lead + tail
+            if not text:
+                return overhang == ""
+            return not any(c.isalnum() for c in overhang)
+
+        def _au_validated_beats_generic(a: PIISpan, b: PIISpan) -> bool:
+            """True if span `a` is a validated AU-specific ID and `b` is a
+            merely-generic span — `a` then wins even when `b` is longer.
+
+            COVERAGE GUARD (fail-closed): the flip is allowed ONLY when `b`'s
+            extent beyond `a` is pure punctuation/whitespace (piiranha's generic
+            span eating a trailing period). A validated-but-SHORTER AU span whose
+            generic neighbour covers REAL extra digits (e.g. a 6-digit BSB prefix
+            of a longer failed TFN run) must NOT win — this merge keeps the
+            winner's own offsets (no union), so stripping the longer span would
+            leak the uncovered digits into cleartext.
+            """
+            return (
+                a.category in AU_SPECIFIC
+                and a.validator_passed is True
+                and b.category in GENERIC_LOSERS
+                and _overhang_is_punctuation(a, b)
+            )
+
+        def _same_range_rank(s: PIISpan) -> tuple[int, int, int]:
+            """Tie-break key for spans occupying the SAME range; higher wins.
+
+            DEFECT #2: at the same range piiranha's generic span and the AU
+            regex floor collide. A span whose checksum PASSED must beat one
+            whose checksum FAILED (acn-passed vs tfn-failed), and an AU-specific
+            structured ID must beat a USERNAME/GENERIC_ID shape it happens to
+            also match (passport vs username). SPECIFICITY breaks remaining
+            ties (keeps the original USERNAME-over-NAME behaviour intact).
+            """
+            return (
+                1 if s.validator_passed is True else 0,
+                1 if s.category in AU_SPECIFIC else 0,
+                SPECIFICITY.get(s.category, 0),
+            )
+
         if not spans:
             return []
-        seen: set[tuple[int, int, str]] = set()
+        # Deduplicate exact (start,end,category) collisions. The SAME AU ID is
+        # emitted by both the regex supplement (validator_passed=None) and the
+        # regex floor (validator_passed + needs_review applied). DEFECT #3:
+        # collapse them onto the first-seen span but fold in the fail-closed
+        # review flag and any definite validator verdict from the duplicate,
+        # so the floor's needs_review can't be silently dropped here.
+        seen: dict[tuple[int, int, str], PIISpan] = {}
         unique: list[PIISpan] = []
         for s in spans:
             key = (s.start, s.end, s.category.value)
-            if key in seen:
+            kept = seen.get(key)
+            if kept is not None:
+                kept.needs_review = kept.needs_review or s.needs_review
+                if kept.validator_passed is None and s.validator_passed is not None:
+                    kept.validator_passed = s.validator_passed
+                    kept.confidence = min(kept.confidence, s.confidence)
                 continue
-            seen.add(key)
+            seen[key] = s
             unique.append(s)
         unique.sort(key=lambda s: (s.start, -(s.end - s.start)))
 
@@ -458,17 +548,40 @@ class HybridDetector:
             if span.overlaps(last):
                 same_range = span.start == last.start and span.end == last.end
                 if same_range:
-                    # Pick the more specific category
-                    if SPECIFICITY.get(span.category, 0) > SPECIFICITY.get(last.category, 0):
+                    # Pick by validated-first, AU-specific, then specificity.
+                    # The winner keeps its OWN needs_review — a different-category
+                    # interpretation of the SAME digits that failed its checksum
+                    # (e.g. a tfn-reading of a valid acn) must not stamp review
+                    # onto a span that validated cleanly (mirrors stock _merge,
+                    # which only propagates review when bounds actually grow).
+                    if _same_range_rank(span) > _same_range_rank(last):
                         merged[-1] = span
                     continue
-                # Different sized overlap: keep the original "prefer longer"
-                if len(span) > len(last):
+                # DEFECT #3: on a DIFFERENT-sized overlap the longer span can
+                # absorb a shorter flagged one (losing its coverage). The
+                # fail-closed review flag must survive that absorption, so
+                # OR-propagate it across the kept span. This is the substrate
+                # analogue of stock _merge's `keep.needs_review |= other...`.
+                review = span.needs_review or last.needs_review
+                # DEFECT #2: a validated AU-specific ID must NOT lose to a
+                # merely-longer generic span. The generic substrate span runs
+                # ~1 char wider (it eats trailing punctuation); without this
+                # guard "prefer longer" mislabels the AU ID and widens past the
+                # validated token. Prefer the AU span and its tighter offsets.
+                if _au_validated_beats_generic(span, last):
+                    merged[-1] = span
+                elif _au_validated_beats_generic(last, span):
+                    pass  # keep `last` (the validated AU span)
+                # Otherwise keep the original "prefer longer" behaviour — the
+                # correct rule for real multi-token entities (ADDRESS, NAME,
+                # ORGANISATION) where the longer span is genuinely right.
+                elif len(span) > len(last):
                     merged[-1] = span
                 elif len(span) == len(last) and (
                     span.validator_passed and not last.validator_passed
                 ):
                     merged[-1] = span
+                merged[-1].needs_review = review
             else:
                 merged.append(span)
         return merged
