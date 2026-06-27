@@ -81,6 +81,26 @@ OPENAI_TO_AU_PRIMARY = {
     "IDCARDNUM": "generic_id",
     "CREDITCARDNUMBER": "generic_id",
     "PASSWORD": "generic_id",
+    # GLiNER label scheme (PIIR_BACKEND=transformers_au_gliner — Apache-2.0
+    # urchade/gliner_multi_pii-v1, the license-clean substrate). GLiNER emits the
+    # lowercase free-text prompt labels. AU regulatory IDs stay with the regex
+    # floor's checksum validators, so numeric labels map to generic_id.
+    "person": "name",
+    "organization": "organisation",
+    "address": "address",
+    "location": "location",
+    "email": "email",
+    "phone number": "phone",
+    "date of birth": "date_of_birth",
+    "date": "date",
+    "driver's license number": "driver_licence",
+    "passport number": "generic_id",
+    "credit card number": "generic_id",
+    "bank account number": "generic_id",
+    "tax identification number": "generic_id",
+    "social security number": "generic_id",
+    "username": "generic_id",
+    "ip address": "generic_id",
 }
 
 

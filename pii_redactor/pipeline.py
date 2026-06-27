@@ -10,11 +10,11 @@ no surprises:
 The pipeline is also constructible from individual components if you
 want full control over the LLM client, redactor style, etc.
 """
+
 from __future__ import annotations
 
 import asyncio
 import logging
-from typing import Optional
 
 from .audit import AuditLog
 from .config import Config
@@ -34,14 +34,14 @@ class Pipeline:
         detector: PIIDetector,
         redactor: Redactor,
         audit: AuditLog,
-        model_name: Optional[str] = None,
+        model_name: str | None = None,
     ):
         self.detector = detector
         self.redactor = redactor
         self.audit = audit
         self.model_name = model_name
 
-    def _run(self, text: str, document_id: Optional[str]) -> RedactionResult:
+    def _run(self, text: str, document_id: str | None) -> RedactionResult:
         """Core synchronous processing logic shared by sync and async paths."""
         request = DocumentRequest(
             text=text,
@@ -67,7 +67,7 @@ class Pipeline:
     def process_document(
         self,
         text: str,
-        document_id: Optional[str] = None,
+        document_id: str | None = None,
     ) -> RedactionResult:
         """Synchronous de-identification. Blocks until complete."""
         return self._run(text, document_id)
@@ -75,7 +75,7 @@ class Pipeline:
     async def process_document_async(
         self,
         text: str,
-        document_id: Optional[str] = None,
+        document_id: str | None = None,
     ) -> RedactionResult:
         """Async de-identification. Runs the blocking detector in a thread-pool
         executor so the event loop is not blocked during LLM HTTP calls.
@@ -110,7 +110,11 @@ def build_llm_client(config: Config) -> LLMClient:
         )
     if config.backend == "mock":
         return MockClient()
-    if config.backend in {"transformers_au", "transformers_au_finetuned"}:
+    if config.backend in {
+        "transformers_au",
+        "transformers_au_finetuned",
+        "transformers_au_gliner",
+    }:
         # The hybrid backend (raw or LoRA-finetuned) doesn't use the LLMClient
         # protocol; it owns its own OpenAIPrivacyFilter. build_pipeline()
         # short-circuits before this is called for hybrid backends, but if a
@@ -121,7 +125,7 @@ def build_llm_client(config: Config) -> LLMClient:
 
 
 def build_pipeline(
-    config: Optional[Config] = None,
+    config: Config | None = None,
     use_regex_prepass: bool = True,
 ) -> Pipeline:
     """Construct a pipeline from config (or env).
@@ -131,7 +135,11 @@ def build_pipeline(
     follow the original LLM-detector flow.
     """
     cfg = config or Config.from_env()
-    if cfg.backend in {"transformers_au", "transformers_au_finetuned"}:
+    if cfg.backend in {
+        "transformers_au",
+        "transformers_au_finetuned",
+        "transformers_au_gliner",
+    }:
         # Local import — avoids loading transformers when the hybrid
         # backend isn't selected. The finetuned variant is selected inside
         # build_hybrid_pipeline via cfg.backend.

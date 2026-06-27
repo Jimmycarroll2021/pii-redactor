@@ -58,6 +58,13 @@ def _select_openai_backend(
     missing — preserves liveness so a misconfigured deployment still works.
     """
     requested = (backend or os.environ.get("PIIR_BACKEND", "")).lower()
+    if requested == "transformers_au_gliner":
+        # License-clean Apache-2.0 GLiNER substrate (bake-off winner). Distinct
+        # architecture from the HF token-classification path, so it ships its own
+        # backend; the AU moat + regex floor + merge + fail-closed sit on top.
+        from .gliner_backend import GlinerBackend  # noqa: PLC0415
+
+        return GlinerBackend()
     if requested == "transformers_au_finetuned":
         from .finetuned_backend import FinetunedOpenAIBackend  # noqa: PLC0415
 
