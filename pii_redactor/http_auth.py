@@ -66,9 +66,13 @@ def reidentify_auth_error(provided: str, env: Mapping[str, str] = os.environ) ->
 
 
 def public_bind_without_auth(env: Mapping[str, str] = os.environ) -> bool:
-    """True when a non-loopback bind is requested with neither a key nor opt-out."""
-    return (
-        _truthy(env.get("PIIR_PUBLIC_BIND"))
-        and not env.get("PIIR_API_KEY")
-        and not auth_disabled_ok(env)
-    )
+    """True when a non-loopback bind is requested without a real API key.
+
+    SEC-04 hardening (CSO 2026-06-28): the PIIR_ALLOW_NO_AUTH opt-out is for
+    LOCAL-ONLY (loopback) use and must NOT disable auth on a publicly-bound
+    (externally reachable) socket. Previously the opt-out suppressed this check,
+    so PIIR_PUBLIC_BIND=true + PIIR_ALLOW_NO_AUTH=true served an unauthenticated
+    redaction/re-identification API to the network (fail-open). A public bind now
+    requires a real PIIR_API_KEY regardless of the opt-out.
+    """
+    return _truthy(env.get("PIIR_PUBLIC_BIND")) and not env.get("PIIR_API_KEY")

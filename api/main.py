@@ -28,6 +28,7 @@ For 100k docs/day with a GPU-backed llama.cpp server:
   - Semaphore of 8 keeps the GPU saturated without overwhelming it
   - Connection pooling in LlamaCppClient means no TCP reconnection overhead
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -87,6 +88,7 @@ def get_semaphore() -> asyncio.Semaphore:
 
 # ------------------------------------------------------------- auth dependency
 
+
 def _env_truthy(name: str) -> bool:
     return os.environ.get(name, "").lower() in {"1", "true", "yes", "on"}
 
@@ -145,6 +147,7 @@ def require_reidentify_api_key(x_api_key: str = Header(default="")) -> None:
 
 # ----------------------------------------------------------------- schemas
 
+
 class RedactRequest(BaseModel):
     text: str = Field(..., min_length=1)
     document_id: Optional[str] = None
@@ -181,6 +184,7 @@ class ReidentifyRequest(BaseModel):
 
 # ----------------------------------------------------------------- endpoints
 
+
 @app.get("/health")
 def health() -> dict:
     """Liveness probe.
@@ -194,9 +198,7 @@ def health() -> dict:
     # v0.4.0: when the finetuned backend is selected, surface the adapter id
     # in /health so orchestrators can confirm the right LoRA is loaded.
     if backend == "transformers_au_finetuned":
-        adapter_path = os.environ.get(
-            "PIIR_LORA_ADAPTER", "/mnt/ai/adapters/redact-au-1b/best"
-        )
+        adapter_path = os.environ.get("PIIR_LORA_ADAPTER", "/mnt/ai/adapters/redact-au-1b/best")
         payload["adapter"] = os.path.basename(adapter_path.rstrip("/")) or "redact-au-1b"
         payload["adapter_path"] = adapter_path
     if backend in {"transformers_au", "transformers_au_finetuned"}:
@@ -369,6 +371,7 @@ def reidentify(req: ReidentifyRequest) -> list[dict]:
 
 # ----------------------------------------------------------------- startup
 
+
 @app.on_event("startup")
 async def startup() -> None:
     # Initialise semaphore inside the event loop
@@ -401,8 +404,8 @@ async def startup() -> None:
     if http_auth.public_bind_without_auth():
         raise RuntimeError(
             "PIIR_PUBLIC_BIND=true requires PIIR_API_KEY: refusing to serve an "
-            "unauthenticated redaction API on a non-loopback bind. Set PIIR_API_KEY, "
-            "or PIIR_ALLOW_NO_AUTH=true to override (NOT for production)."
+            "unauthenticated redaction API on a non-loopback bind. Set PIIR_API_KEY. "
+            "PIIR_ALLOW_NO_AUTH does NOT override a public bind (local-only opt-out)."
         )
 
     if not os.environ.get("PIIR_API_KEY"):

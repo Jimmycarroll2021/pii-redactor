@@ -56,3 +56,17 @@ def test_public_bind_without_auth_is_flagged(monkeypatch) -> None:
     assert public_bind_without_auth() is True
     monkeypatch.setenv("PIIR_API_KEY", "s3cret")
     assert public_bind_without_auth() is False
+
+
+def test_public_bind_optout_cannot_disable_auth(monkeypatch) -> None:
+    """SEC-04 (CSO 2026-06-28): the local-only PIIR_ALLOW_NO_AUTH opt-out must NOT
+    serve an unauthenticated API on a public (non-loopback) bind. The combination
+    PIIR_PUBLIC_BIND=true + PIIR_ALLOW_NO_AUTH=true was a network fail-open."""
+    monkeypatch.setenv("PIIR_PUBLIC_BIND", "true")
+    monkeypatch.setenv("PIIR_ALLOW_NO_AUTH", "true")
+    monkeypatch.delenv("PIIR_API_KEY", raising=False)
+    # Opt-out must NOT suppress the public-bind refusal => still flagged.
+    assert public_bind_without_auth() is True
+    # Only a real key clears it.
+    monkeypatch.setenv("PIIR_API_KEY", "s3cret")
+    assert public_bind_without_auth() is False
