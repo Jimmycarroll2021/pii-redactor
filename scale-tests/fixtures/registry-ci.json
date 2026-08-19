@@ -1,0 +1,123 @@
+{
+ "fixtures": [
+  {
+   "category_counts": {
+    "abn": 1,
+    "acn": 1,
+    "address": 6,
+    "bsb_account": 1,
+    "crn": 1,
+    "date_of_birth": 4,
+    "driver_licence": 1,
+    "email": 4,
+    "healthcare_identifier": 1,
+    "medical_record_number": 2,
+    "medicare": 2,
+    "name": 6,
+    "passport": 2,
+    "patient_id": 1,
+    "phone": 4,
+    "tfn": 2
+   },
+   "document_count": 6,
+   "documents": "scale-tests/fixtures/pii-context-proof-20260503/documents.jsonl",
+   "expected": "scale-tests/fixtures/pii-context-proof-20260503/expected_labels.jsonl",
+   "id": "pii-context-proof-20260503",
+   "qwen_sample": true,
+   "required": true,
+   "tier": "proof"
+  },
+  {
+   "category_counts": {
+    "address": 1,
+    "date_of_birth": 1,
+    "email": 1,
+    "healthcare_identifier": 1,
+    "medical_record_number": 1,
+    "medicare": 1,
+    "name": 1,
+    "patient_id": 1,
+    "phone": 1,
+    "tfn": 1
+   },
+   "document_count": 1,
+   "documents": "scale-tests/fixtures/pii-hidden-middle-40page-20260503/documents.jsonl",
+   "expected": "scale-tests/fixtures/pii-hidden-middle-40page-20260503/expected_labels.jsonl",
+   "id": "pii-hidden-middle-40page-20260503",
+   "qwen_sample": true,
+   "required": true,
+   "tier": "proof"
+  },
+  {
+   "category_counts": {
+    "abn": 1,
+    "acn": 1,
+    "address": 2,
+    "bsb_account": 1,
+    "crn": 1,
+    "date_of_birth": 2,
+    "driver_licence": 1,
+    "email": 2,
+    "healthcare_identifier": 1,
+    "medical_record_number": 1,
+    "medicare": 1,
+    "name": 2,
+    "passport": 1,
+    "patient_id": 1,
+    "phone": 2,
+    "tfn": 1
+   },
+   "document_count": 2,
+   "documents": "scale-tests/fixtures/pii-proof-20260503/documents.jsonl",
+   "expected": "scale-tests/fixtures/pii-proof-20260503/expected_labels.jsonl",
+   "id": "pii-proof-20260503",
+   "qwen_sample": true,
+   "required": true,
+   "tier": "proof"
+  },
+  {
+   "category_counts": {
+    "date": 30,
+    "email": 30,
+    "generic_id": 20,
+    "phone": 20,
+    "url": 20,
+    "username": 40
+   },
+   "document_count": 120,
+   "documents": "scale-tests/fixtures/adversarial-edgecases-20260503/documents.jsonl",
+   "expected": "scale-tests/fixtures/adversarial-edgecases-20260503/expected_labels.jsonl",
+   "id": "adversarial-edgecases-20260503",
+   "qwen_sample": true,
+   "required": true,
+   "tier": "autonomous"
+  },
+  {
+   "category_counts": {},
+   "document_count": 250,
+   "documents": "scale-tests/fixtures/benign-false-positive-20260503/documents.jsonl",
+   "expected": "scale-tests/fixtures/benign-false-positive-20260503/expected_labels.jsonl",
+   "id": "benign-false-positive-20260503",
+   "qwen_sample": false,
+   "required": true,
+   "tier": "autonomous"
+  },
+  {
+   "category_counts": {
+    "address": 6,
+    "date_of_birth": 6,
+    "email": 6,
+    "name": 6,
+    "phone": 6
+   },
+   "document_count": 6,
+   "documents": "scale-tests/fixtures/longdoc-chunk-boundary-20260503/documents.jsonl",
+   "expected": "scale-tests/fixtures/longdoc-chunk-boundary-20260503/expected_labels.jsonl",
+   "id": "longdoc-chunk-boundary-20260503",
+   "qwen_sample": true,
+   "required": true,
+   "tier": "autonomous"
+  }
+ ],
+ "note": "CI-scoped registry: only fixtures committed to the repo. The full registry-autonomous.json (external ai4privacy/gretel/kaggle + synthetic sets, kept out of git for size/licence) remains the local release gate."
+}
