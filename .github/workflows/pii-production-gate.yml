@@ -24,3 +24,11 @@ jobs:
             --registry scale-tests/fixtures/registry-autonomous.json \
             --skip-encrypted-audit \
             --out scale-tests/runs/ci-production-gate
+      - name: Dump gate results on failure
+        if: failure()
+        run: |
+          for f in scale-tests/runs/ci-production-gate/*.json; do
+            echo "===== $f ====="
+            cat "$f"
+            echo
+          done
