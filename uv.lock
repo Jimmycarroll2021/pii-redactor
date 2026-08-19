@@ -1516,7 +1516,7 @@ wheels = [
 
 [[package]]
 name = "pii-redactor-au"
-version = "0.4.3"
+version = "0.4.5"
 source = { editable = "." }
 dependencies = [
     { name = "cryptography" },
@@ -1540,6 +1540,7 @@ api = [
     { name = "uvicorn", extra = ["standard"] },
 ]
 dev = [
+    { name = "httpx" },
     { name = "pytest" },
     { name = "ruff" },
 ]
@@ -1563,6 +1564,7 @@ requires-dist = [
     { name = "fastapi", marker = "extra == 'api'", specifier = ">=0.110.0" },
     { name = "gradio", marker = "extra == 'all'", specifier = ">=4.36.0" },
     { name = "gradio", marker = "extra == 'ui'", specifier = ">=4.36.0" },
+    { name = "httpx", marker = "extra == 'dev'", specifier = ">=0.27.0" },
     { name = "huggingface-hub", marker = "extra == 'all'", specifier = ">=0.24.0" },
     { name = "huggingface-hub", marker = "extra == 'hf'", specifier = ">=0.24.0" },
     { name = "huggingface-hub", marker = "extra == 'hybrid'", specifier = ">=0.24.0" },

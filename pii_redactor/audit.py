@@ -24,7 +24,6 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Optional
 
 from .models import PIISpan
 
@@ -42,15 +41,15 @@ class AuditEntry:
     value_encrypted: str  # base64 Fernet token, or "" if encryption disabled
     placeholder: str
     confidence: float
-    validator_passed: Optional[bool]
-    model_used: Optional[str]
+    validator_passed: bool | None
+    model_used: str | None
 
 
 class AuditLog:
     def __init__(
         self,
         path: str = "./audit.jsonl",
-        encryption_key: Optional[str] = None,
+        encryption_key: str | None = None,
         enabled: bool = True,
     ):
         self.path = Path(path)
@@ -85,7 +84,7 @@ class AuditLog:
         self,
         document_id: str,
         spans: list[PIISpan],
-        model_used: Optional[str] = None,
+        model_used: str | None = None,
     ) -> str:
         """Write an audit batch for a single document. Returns the audit_id."""
         audit_id = str(uuid.uuid4())

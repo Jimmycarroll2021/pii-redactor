@@ -24,7 +24,6 @@ from __future__ import annotations
 
 import logging
 import os
-from typing import Any
 
 from .openai_backend import OpenAIPrivacyFilter
 
@@ -90,6 +89,8 @@ class FinetunedOpenAIBackend(OpenAIPrivacyFilter):
             from transformers import (
                 AutoModelForTokenClassification,
                 AutoTokenizer,
+            )
+            from transformers import (
                 pipeline as hf_pipeline,
             )
         except ImportError as exc:

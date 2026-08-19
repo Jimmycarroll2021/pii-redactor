@@ -6,9 +6,9 @@ import json
 import os
 import sys
 import tempfile
+from collections.abc import Iterable
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Iterable
 
 from .config import Config
 from .pipeline import build_pipeline
@@ -17,7 +17,6 @@ from .policies import (
     available_policy_profiles,
     policy_snapshot,
 )
-
 
 TEXT_EXTENSIONS = {".txt", ".md", ".json", ".jsonl", ".csv", ".yaml", ".yml"}
 
@@ -86,7 +85,9 @@ def cmd_redact(args: argparse.Namespace) -> int:
     )
     if args.metadata:
         args.metadata.parent.mkdir(parents=True, exist_ok=True)
-        args.metadata.write_text(json.dumps(metadata, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        args.metadata.write_text(
+            json.dumps(metadata, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+        )
     print(json.dumps(metadata, sort_keys=True))
     return 0
 
@@ -103,10 +104,17 @@ def cmd_ingest(args: argparse.Namespace) -> int:
     else:
         source_files = list(_iter_input_files(input_path))
         if not source_files:
-            failures.append({"input_path": str(input_path), "error": "Input path contains no supported text files"})
+            failures.append({
+                "input_path": str(input_path),
+                "error": "Input path contains no supported text files",
+            })
     pipeline = build_pipeline(Config.from_env()) if not failures else None
     for index, source_file in enumerate(source_files, start=1):
-        relative = source_file.name if source_file.is_file() and input_path.is_file() else source_file.relative_to(input_path)
+        relative = (
+            source_file.name
+            if source_file.is_file() and input_path.is_file()
+            else source_file.relative_to(input_path)
+        )
         output_path = output_root / relative
         source_id = f"{args.source_prefix}-{index:06d}"
         try:
@@ -183,11 +191,15 @@ def cmd_gate(args: argparse.Namespace) -> int:
             "documents_processed": len(rows),
             "needs_review_documents": review_total,
             "pii_count_total": sum(row["pii_count"] for row in rows),
-            "pii_categories": sorted({cat for row in rows for cat in row["pii_categories"]}),
+            "pii_categories": sorted({
+                cat for row in rows for cat in row["pii_categories"]
+            }),
         }
         if args.output:
             args.output.parent.mkdir(parents=True, exist_ok=True)
-            args.output.write_text(json.dumps(summary, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+            args.output.write_text(
+                json.dumps(summary, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+            )
         print(json.dumps(summary, sort_keys=True))
         return code
 
@@ -215,12 +227,15 @@ def cmd_evidence(args: argparse.Namespace) -> int:
             "failed": len(failed),
             "documents_processed": len(rows),
             "pii_count_total": sum(row.get("pii_count", 0) for row in rows),
-            "pii_categories": sorted({cat for row in rows for cat in row.get("pii_categories", [])}),
+            "pii_categories": sorted({
+                cat for row in rows for cat in row.get("pii_categories", [])
+            }),
         }
         summary_source = "manifest.jsonl"
     else:
         raise FileNotFoundError(
-            f"No supported evidence source found under {run_dir}; expected summary.json, gate-summary.json, or manifest.jsonl"
+            f"No supported evidence source found under {run_dir}; "
+            "expected summary.json, gate-summary.json, or manifest.jsonl"
         )
     evidence = {
         "generated_at": datetime.now(timezone.utc).isoformat(),
@@ -258,7 +273,11 @@ def cmd_evidence(args: argparse.Namespace) -> int:
         + "\n",
         encoding="utf-8",
     )
-    print(json.dumps({"status": "PASS", "evidence": str(md_path), "summary": str(json_path)}, sort_keys=True))
+    print(json.dumps({
+        "status": "PASS",
+        "evidence": str(md_path),
+        "summary": str(json_path),
+    }, sort_keys=True))
     return 0
 
 
@@ -292,7 +311,9 @@ def build_parser() -> argparse.ArgumentParser:
     gate.add_argument("--source-prefix", default="GATE")
     gate.set_defaults(func=cmd_gate)
 
-    evidence = sub.add_parser("evidence", help="Generate an evidence pack for a production gate run.")
+    evidence = sub.add_parser(
+        "evidence", help="Generate an evidence pack for a production gate run."
+    )
     evidence.add_argument("--run", type=Path, required=True)
     evidence.set_defaults(func=cmd_evidence)
     return parser

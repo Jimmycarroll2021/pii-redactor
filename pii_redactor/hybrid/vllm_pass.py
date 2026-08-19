@@ -45,7 +45,6 @@ Soft-fail by design: any error (unreachable, bad JSON, etc.) returns
 
 from __future__ import annotations
 
-import json
 import logging
 import os
 from typing import Any

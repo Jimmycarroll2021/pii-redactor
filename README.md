@@ -4,11 +4,14 @@ Pre-ingestion PII de-identification for Australian government data.
 
 Implements the methodology from Wiest et al., *Deidentifying Medical Documents with Local, Privacy-Preserving Large Language Models* (NEJM AI, 2024), extended with Australian Commonwealth identifier detection and checksum validation.
 
-[![Tests](https://img.shields.io/badge/tests-137%2F137%20passing-brightgreen)](#testing)
+[![Tests](https://img.shields.io/badge/tests-198%2F198%20passing-brightgreen)](#testing)
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue)](#)
 [![License](https://img.shields.io/badge/license-MIT-green)](#)
 [![HF Hub](https://img.shields.io/badge/HF%20Hub-redact--au--1b-yellow)](https://huggingface.co/JimmyBhoy/redact-au-1b)
 
+> **v0.4.5 — Engine HTTP startup hardening + version reconciliation (2026-06-30).**
+> Fixed `api/main.py` startup crash when `PIIR_API_KEY` is unset; reconciled version strings; added FastAPI smoke tests. See `CHANGELOG.md` for the full changeset.
+>
 > **v0.4.1 — AU organisation + location recognisers (2026-05-20).** Per-sector
 > sensitivity lift +0.64 to +6.76 pp across federal/state-health/legal/medtech
 > benches; organisation per-category recall +13-56 pp; location +33 pp on

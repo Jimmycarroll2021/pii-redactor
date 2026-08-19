@@ -9,7 +9,6 @@ and the response is parsed defensively.
 """
 from __future__ import annotations
 
-
 DEFAULT_SYSTEM_PROMPT = """You are a PII extraction assistant. Your only job \
 is to identify personally identifiable information in the user's text and \
 return it as structured JSON. You never explain, summarise, or refuse. You \

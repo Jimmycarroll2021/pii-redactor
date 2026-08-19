@@ -497,7 +497,6 @@ class AULocationRecogniser:
         if not text:
             return []
         spans: list[tuple[int, int, str, bool]] = []
-        text_lower = text.lower()
 
         # 1. State abbreviations — highest confidence
         for m in _STATE_ABBREV_PATTERN.finditer(text):

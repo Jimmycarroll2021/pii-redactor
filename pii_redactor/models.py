@@ -10,7 +10,7 @@ import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
-from typing import Any, Optional
+from typing import Any
 
 
 class PIICategory(str, Enum):
@@ -59,16 +59,16 @@ class PIISpan:
     category: PIICategory
     start: int
     end: int
-    value: Optional[str] = None
+    value: str | None = None
     confidence: float = 1.0
-    validator_passed: Optional[bool] = None  # None when no validator exists
-    placeholder: Optional[str] = None
+    validator_passed: bool | None = None  # None when no validator exists
+    placeholder: str | None = None
     # True when this span was redacted fail-closed despite a failed/absent
     # checksum (e.g. a malformed-but-ID-shaped token). The span IS redacted;
     # the flag tells the gate the document must not pass as cleanly "safe".
     needs_review: bool = False
 
-    def overlaps(self, other: "PIISpan") -> bool:
+    def overlaps(self, other: PIISpan) -> bool:
         return not (self.end <= other.start or other.end <= self.start)
 
     def __len__(self) -> int:
@@ -96,7 +96,7 @@ class RedactionResult:
     spans: list[PIISpan]
     audit_id: str
     processed_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
-    model_used: Optional[str] = None
+    model_used: str | None = None
     # True when any span needed fail-closed review (failed/absent checksum on an
     # ID-shaped token). A document with needs_review must not be reported as a
     # clean "pass" by the release/quality gate.

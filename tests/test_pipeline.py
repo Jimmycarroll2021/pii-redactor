@@ -187,6 +187,7 @@ def test_pii_table_excludes_original_values(tmp_path):
 def test_ollama_client_posts_correct_payload(monkeypatch):
     import json as _json
     from unittest.mock import MagicMock
+
     from pii_redactor import llm_client as llm_mod
     from pii_redactor.llm_client import OllamaClient
 

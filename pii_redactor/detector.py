@@ -18,7 +18,7 @@ from __future__ import annotations
 import json
 import logging
 import re
-from typing import Iterable, Optional
+from collections.abc import Iterable
 
 from .grammar import build_grammar
 from .llm_client import LLMClient
@@ -41,7 +41,7 @@ class PIIDetector:
         chunk_overlap: int = 200,
         temperature: float = 0.1,
         max_tokens: int = 2048,
-        categories: Optional[list[PIICategory]] = None,
+        categories: list[PIICategory] | None = None,
         use_grammar: bool = True,
         use_regex_prepass: bool = True,
         fail_on_llm_error: bool = False,

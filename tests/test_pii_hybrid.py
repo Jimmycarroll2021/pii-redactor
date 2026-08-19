@@ -6,11 +6,8 @@ of the LLM, and that results from both paths merge without duplicates.
 import json
 import re
 
-import pytest
-
 from pii_redactor.detector import PIIDetector
 from pii_redactor.models import PIICategory, PIISpan
-from pii_redactor.validators import regex_first_pass
 
 
 class NoopClient:

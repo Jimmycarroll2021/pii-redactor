@@ -41,10 +41,10 @@ import logging
 import os
 from typing import Any
 
+from ..detector import PIIDetector
 from ..llm_client import OllamaClient
 from ..models import PIICategory
 from ..prompts import build_prompt
-from ..detector import PIIDetector
 
 logger = logging.getLogger(__name__)
 
@@ -235,7 +235,7 @@ class LlamaNERPass:
         self._loaded = False
 
 
-def _iter_occurrences(text: str, value: str) -> "Any":
+def _iter_occurrences(text: str, value: str) -> Any:
     """Yield every (non-overlapping) start index of ``value`` in ``text``.
 
     Mirrors PIIDetector._locate_in_source so the llama pass produces the
