@@ -21,6 +21,14 @@ jobs:
       - name: Run deterministic production gate
         run: |
           python scale-tests/run_production_gate.py \
-            --registry scale-tests/fixtures/registry-autonomous.json \
+            --registry scale-tests/fixtures/registry-ci.json \
             --skip-encrypted-audit \
             --out scale-tests/runs/ci-production-gate
+      - name: Dump gate results on failure
+        if: failure()
+        run: |
+          for f in scale-tests/runs/ci-production-gate/*.json; do
+            echo "===== $f ====="
+            cat "$f"
+            echo
+          done

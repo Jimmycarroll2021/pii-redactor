@@ -17,7 +17,7 @@ Public API:
 from .audit import AuditLog
 from .config import Config
 from .detector import PIIDetector
-from .llm_client import HFInferenceClient, LLMClient, LlamaCppClient, MockClient, OllamaClient
+from .llm_client import HFInferenceClient, LlamaCppClient, LLMClient, MockClient, OllamaClient
 from .models import DocumentRequest, PIICategory, PIISpan, RedactionResult
 from .pipeline import Pipeline, build_llm_client, build_pipeline
 from .redactor import Redactor
@@ -29,7 +29,7 @@ from .validators import (
     validate_tfn,
 )
 
-__version__ = "0.3.2"
+__version__ = "0.4.5"
 
 __all__ = [
     "AuditLog",

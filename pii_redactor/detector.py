@@ -18,7 +18,7 @@ from __future__ import annotations
 import json
 import logging
 import re
-from typing import Iterable, Optional
+from collections.abc import Iterable
 
 from .grammar import build_grammar
 from .llm_client import LLMClient
@@ -41,7 +41,7 @@ class PIIDetector:
         chunk_overlap: int = 200,
         temperature: float = 0.1,
         max_tokens: int = 2048,
-        categories: Optional[list[PIICategory]] = None,
+        categories: list[PIICategory] | None = None,
         use_grammar: bool = True,
         use_regex_prepass: bool = True,
         fail_on_llm_error: bool = False,
@@ -298,7 +298,15 @@ class PIIDetector:
 
     @staticmethod
     def _apply_validators(spans: list[PIISpan]) -> list[PIISpan]:
-        """Run category-specific validators. Drop spans that fail."""
+        """Run category-specific validators.
+
+        Fail-closed: a token shaped like a regulated identifier but failing its
+        checksum is treated as *suspected* PII (a typo'd or OCR-garbled real ID
+        is higher risk, not lower), NOT silently dropped. The span is retained
+        and redacted at reduced confidence with ``needs_review`` set, so (a) no
+        cleartext residue can survive into the output and (b) the gate cannot
+        report the document as a clean pass. Raw values are never logged.
+        """
         out: list[PIISpan] = []
         for span in spans:
             validator = get_validator(span.category)
@@ -311,17 +319,31 @@ class PIIDetector:
                 out.append(span)
             else:
                 span.validator_passed = False
+                span.needs_review = True
+                span.confidence = min(span.confidence, 0.5)
                 logger.debug(
-                    "Dropped %s span '%s' — failed checksum",
+                    "Suspected %s span flagged at [%d:%d] — failed checksum, "
+                    "redacting fail-closed (needs review)",
                     span.category.value,
-                    span.value,
+                    span.start,
+                    span.end,
                 )
+                out.append(span)
         return out
 
     @staticmethod
     def _merge(spans: list[PIISpan]) -> list[PIISpan]:
-        """Sort and deduplicate. When two spans overlap, prefer the longer
-        one; if equal length, prefer the one with a passing validator."""
+        """Sort, deduplicate, and merge overlapping spans by UNION.
+
+        When two detected spans overlap, the kept span's bounds are expanded to
+        cover the union of both. This is the fail-closed coverage invariant: a
+        redacted region can never leave part of an overlapping detection (e.g.
+        the trailing digits of a longer identifier whose checksum failed) in
+        cleartext. The surviving span keeps the longer detection's category; if
+        the union extends its bounds, its original value no longer matches the
+        text, so the value is cleared (the redactor then uses a category
+        placeholder) and any ``needs_review`` from the extending span is
+        inherited."""
         if not spans:
             return []
         # Deduplicate exact duplicates first
@@ -343,15 +365,24 @@ class PIIDetector:
                 merged.append(span)
                 continue
             last = merged[-1]
-            if span.overlaps(last):
-                # Prefer longer; on tie prefer validated
-                if len(span) > len(last):
-                    merged[-1] = span
-                elif len(span) == len(last) and (
-                    span.validator_passed and not last.validator_passed
-                ):
-                    merged[-1] = span
-                # otherwise drop the new span
-            else:
+            if not span.overlaps(last):
                 merged.append(span)
+                continue
+            # Overlap: keep the longer detection (tie → keep validated), then
+            # expand its bounds to the union so no residue survives.
+            keep, other = (last, span)
+            if len(span) > len(last) or (
+                len(span) == len(last)
+                and bool(span.validator_passed)
+                and not bool(last.validator_passed)
+            ):
+                keep, other = span, last
+            new_start = min(last.start, span.start)
+            new_end = max(last.end, span.end)
+            if new_start < keep.start or new_end > keep.end:
+                # Bounds grew beyond the kept detection's original value.
+                keep.value = None
+                keep.needs_review = keep.needs_review or other.needs_review
+            keep.start, keep.end = new_start, new_end
+            merged[-1] = keep
         return merged

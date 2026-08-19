@@ -6,9 +6,9 @@ import json
 import os
 import sys
 import tempfile
+from collections.abc import Iterable
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Iterable
 
 from .config import Config
 from .pipeline import build_pipeline
@@ -17,7 +17,6 @@ from .policies import (
     available_policy_profiles,
     policy_snapshot,
 )
-
 
 TEXT_EXTENSIONS = {".txt", ".md", ".json", ".jsonl", ".csv", ".yaml", ".yml"}
 
@@ -41,9 +40,11 @@ def _metadata_row(
     output_path: Path,
     result,
     policy_name: str,
-    gate_status: str,
 ) -> dict:
     categories = sorted({span.category.value for span in result.spans})
+    # Honest gate status: a document carrying fail-closed "suspected" redactions
+    # (ID-shaped tokens that failed their checksum) must NOT report a clean pass.
+    needs_review = bool(getattr(result, "needs_review", False))
     return {
         "source_id": source_id,
         "input_path": str(input_path),
@@ -53,7 +54,8 @@ def _metadata_row(
         "pii_categories": categories,
         "redaction_policy": policy_name,
         "model_used": result.model_used,
-        "gate_status": gate_status,
+        "needs_review": needs_review,
+        "gate_status": "review" if needs_review else "pass",
         "processed_at": result.processed_at.isoformat(),
     }
 
@@ -80,11 +82,12 @@ def cmd_redact(args: argparse.Namespace) -> int:
         args.output,
         result,
         policy_name,
-        "pass",
     )
     if args.metadata:
         args.metadata.parent.mkdir(parents=True, exist_ok=True)
-        args.metadata.write_text(json.dumps(metadata, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        args.metadata.write_text(
+            json.dumps(metadata, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+        )
     print(json.dumps(metadata, sort_keys=True))
     return 0
 
@@ -101,10 +104,17 @@ def cmd_ingest(args: argparse.Namespace) -> int:
     else:
         source_files = list(_iter_input_files(input_path))
         if not source_files:
-            failures.append({"input_path": str(input_path), "error": "Input path contains no supported text files"})
+            failures.append({
+                "input_path": str(input_path),
+                "error": "Input path contains no supported text files",
+            })
     pipeline = build_pipeline(Config.from_env()) if not failures else None
     for index, source_file in enumerate(source_files, start=1):
-        relative = source_file.name if source_file.is_file() and input_path.is_file() else source_file.relative_to(input_path)
+        relative = (
+            source_file.name
+            if source_file.is_file() and input_path.is_file()
+            else source_file.relative_to(input_path)
+        )
         output_path = output_root / relative
         source_id = f"{args.source_prefix}-{index:06d}"
         try:
@@ -112,7 +122,7 @@ def cmd_ingest(args: argparse.Namespace) -> int:
             output_path.parent.mkdir(parents=True, exist_ok=True)
             output_path.write_text(result.redacted_text, encoding="utf-8")
             manifest_rows.append(
-                _metadata_row(source_id, source_file, output_path, result, policy_name, "pass")
+                _metadata_row(source_id, source_file, output_path, result, policy_name)
             )
         except Exception as exc:  # noqa: BLE001
             failures.append({"input_path": str(source_file), "error": str(exc)})
@@ -122,16 +132,27 @@ def cmd_ingest(args: argparse.Namespace) -> int:
     with args.manifest.open("w", encoding="utf-8") as handle:
         for row in manifest_rows:
             handle.write(json.dumps(row, sort_keys=True) + "\n")
+    review_rows = [r for r in manifest_rows if r.get("gate_status") == "review"]
+    if failures or not manifest_rows:
+        status = "FAIL"
+    elif review_rows:
+        status = "REVIEW"
+    else:
+        status = "PASS"
     summary = {
-        "status": "PASS" if not failures and manifest_rows else "FAIL",
+        "status": status,
         "policy": policy_name,
         "documents_processed": len(manifest_rows),
+        "needs_review_documents": len(review_rows),
         "failures": failures,
         "manifest": str(args.manifest),
         "output": str(output_root),
     }
     print(json.dumps(summary, sort_keys=True))
-    return 0 if summary["status"] == "PASS" else 1
+    # Ingest is a transform step: hard failures exit non-zero; a REVIEW outcome
+    # (suspected redactions present, but all redacted) still exits 0 so bulk
+    # transforms complete — the enforcing `gate` command blocks on review.
+    return 1 if status == "FAIL" else 0
 
 
 def cmd_gate(args: argparse.Namespace) -> int:
@@ -154,16 +175,31 @@ def cmd_gate(args: argparse.Namespace) -> int:
                 for line in ingest_args.manifest.read_text(encoding="utf-8").splitlines()
                 if line.strip()
             ]
+        review_total = sum(1 for row in rows if row.get("gate_status") == "review")
+        if code != 0:
+            gate_state = "FAIL"
+        elif review_total:
+            # The gate is the enforcement point: suspected (failed-checksum)
+            # redactions must be human-reviewed before the doc is cleared.
+            gate_state = "REVIEW"
+            code = 1
+        else:
+            gate_state = "PASS"
         summary = {
-            "status": "PASS" if code == 0 else "FAIL",
+            "status": gate_state,
             "policy": policy_name,
             "documents_processed": len(rows),
+            "needs_review_documents": review_total,
             "pii_count_total": sum(row["pii_count"] for row in rows),
-            "pii_categories": sorted({cat for row in rows for cat in row["pii_categories"]}),
+            "pii_categories": sorted({
+                cat for row in rows for cat in row["pii_categories"]
+            }),
         }
         if args.output:
             args.output.parent.mkdir(parents=True, exist_ok=True)
-            args.output.write_text(json.dumps(summary, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+            args.output.write_text(
+                json.dumps(summary, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+            )
         print(json.dumps(summary, sort_keys=True))
         return code
 
@@ -191,12 +227,15 @@ def cmd_evidence(args: argparse.Namespace) -> int:
             "failed": len(failed),
             "documents_processed": len(rows),
             "pii_count_total": sum(row.get("pii_count", 0) for row in rows),
-            "pii_categories": sorted({cat for row in rows for cat in row.get("pii_categories", [])}),
+            "pii_categories": sorted({
+                cat for row in rows for cat in row.get("pii_categories", [])
+            }),
         }
         summary_source = "manifest.jsonl"
     else:
         raise FileNotFoundError(
-            f"No supported evidence source found under {run_dir}; expected summary.json, gate-summary.json, or manifest.jsonl"
+            f"No supported evidence source found under {run_dir}; "
+            "expected summary.json, gate-summary.json, or manifest.jsonl"
         )
     evidence = {
         "generated_at": datetime.now(timezone.utc).isoformat(),
@@ -234,7 +273,11 @@ def cmd_evidence(args: argparse.Namespace) -> int:
         + "\n",
         encoding="utf-8",
     )
-    print(json.dumps({"status": "PASS", "evidence": str(md_path), "summary": str(json_path)}, sort_keys=True))
+    print(json.dumps({
+        "status": "PASS",
+        "evidence": str(md_path),
+        "summary": str(json_path),
+    }, sort_keys=True))
     return 0
 
 
@@ -268,7 +311,9 @@ def build_parser() -> argparse.ArgumentParser:
     gate.add_argument("--source-prefix", default="GATE")
     gate.set_defaults(func=cmd_gate)
 
-    evidence = sub.add_parser("evidence", help="Generate an evidence pack for a production gate run.")
+    evidence = sub.add_parser(
+        "evidence", help="Generate an evidence pack for a production gate run."
+    )
     evidence.add_argument("--run", type=Path, required=True)
     evidence.set_defaults(func=cmd_evidence)
     return parser

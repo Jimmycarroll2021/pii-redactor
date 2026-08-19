@@ -23,9 +23,28 @@ Configuration
 Soft-fail by design: any error (unreachable, bad JSON, etc.) returns
 ``[]`` so the OpenAI Privacy Filter pass still produces results.
 """
+
+# References:
+#   Lin, J., Tang, J., Tang, H., Yang, S., Chen, W.-M., Wang, W.-C., Xiao, G.,
+#   Dang, X., Gan, C., & Han, S. (2024). AWQ: Activation-aware Weight Quantization
+#   for On-Device LLM Compression and Acceleration. MLSys 2024 (Best Paper).
+#   arxiv:2306.00978.
+#   See `docs/references/lin-2024-awq.pdf` and
+#   `docs/references/REFERENCES.md` (citekey: lin-2024-awq).
+#
+#   Frantar, E., Castro, R. L., Chen, J., Hoefler, T., & Alistarh, D. (2024).
+#   MARLIN: Mixed-Precision Auto-Regressive Parallel Inference on Large Language
+#   Models. arxiv:2408.11743.
+#   See `docs/references/frantar-2024-marlin.pdf` and
+#   `docs/references/REFERENCES.md` (citekey: frantar-2024-marlin).
+#
+#   The Llama-3.1-8B model served behind this client is 4-bit AWQ-quantized
+#   (Lin et al.) and executed via vLLM's `awq_marlin` kernel (Frantar et al.),
+#   which combines the AWQ weight format with the Marlin FP16xINT4 GEMM kernel +
+#   batched-inference scheduler for ~4-5x throughput over plain AWQ.
+
 from __future__ import annotations
 
-import json
 import logging
 import os
 from typing import Any

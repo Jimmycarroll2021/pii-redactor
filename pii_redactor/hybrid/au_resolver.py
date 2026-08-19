@@ -38,6 +38,7 @@ The `resolve_account_numbers` entry-point is pure: it accepts a list of
 candidate spans (typically just OpenAI's account_number + secret outputs)
 and returns a list of *new* PIISpans with the upgraded category.
 """
+
 from __future__ import annotations
 
 import logging
@@ -48,6 +49,127 @@ from ..models import PIICategory, PIISpan
 from ..validators import validate_abn, validate_acn, validate_bsb, validate_medicare, validate_tfn
 
 logger = logging.getLogger(__name__)
+
+
+# ---------------------------------------------------------------------------
+# v0.4.3 — `private_address` vs `location` disambiguation
+# ---------------------------------------------------------------------------
+# openai/privacy-filter emits a single `private_address` label for BOTH
+# postal addresses (street + suburb + postcode) AND standalone references
+# to suburbs / regions / states. Phase 4 sector bench showed this collapse
+# bottoms out the per-category `location` recall at ~0% even when the model
+# is recovering the spans.
+#
+# This module post-processes any span tagged `address` (the AU primary
+# mapping of `private_address`) and re-tags it as `location` when the
+# span has no street-number / street-keyword / postcode component. Pure
+# rule layer — no model change.
+
+# Street-suffix vocabulary used for the structural check. Lower-cased
+# for case-insensitive matching.
+_AU_STREET_SUFFIX_RE = re.compile(
+    r"\b("
+    r"street|st|road|rd|avenue|ave|lane|ln|drive|dr|"
+    r"crescent|cres|court|ct|place|pl|way|highway|hwy|"
+    r"parade|pde|boulevard|blvd|terrace|tce|close|cl|"
+    r"circuit|cct|esplanade|esp|square|sq|mews|walk|"
+    r"track|trail|loop|rise|view|vista|grove|gardens|gdns"
+    r")\b",
+    re.IGNORECASE,
+)
+
+# 4-digit AU postcode pattern. AU postcodes are 4 digits, 0200-9999 (0xxx
+# = ACT, 8xxx = NT/SA variants). The structural check uses presence /
+# absence of any 4-digit run inside the span value.
+_AU_POSTCODE_RE = re.compile(r"\b\d{4}\b")
+
+# Leading digit run (street number) — "23 Collins Street" or "1/45 Park Rd".
+_STREET_NUMBER_RE = re.compile(r"^\s*(?:\d+\s*[/\\-]?\s*)?\d+\b")
+
+# AU state full names / abbreviations — used to spot trailing
+# "Suburb STATE Postcode" pattern even when there's no street keyword.
+_STATE_TOKEN_RE = re.compile(
+    r"\b(NSW|VIC|QLD|WA|SA|TAS|NT|ACT|"
+    r"New\s+South\s+Wales|Victoria|Queensland|Western\s+Australia|"
+    r"South\s+Australia|Tasmania|Northern\s+Territory|"
+    r"Australian\s+Capital\s+Territory)\b",
+    re.IGNORECASE,
+)
+
+# PO Box / GPO Box / Locked Bag — explicit non-street address forms that
+# still resolve to ADDRESS (mail address), not LOCATION.
+_POSTAL_BOX_RE = re.compile(
+    r"\b(?:P\.?O\.?\s*Box|GPO\s*Box|Locked\s+Bag|Private\s+Bag)\s*\d+",
+    re.IGNORECASE,
+)
+
+
+def _disambiguate_address_vs_location(span_text: str) -> str:
+    """Return ``"address"`` or ``"location"`` for an OpenAI `private_address`
+    span, using structural heuristics on the span text only.
+
+    Rules (first match wins):
+
+    1. PO Box / GPO Box / Locked Bag → address (postal address).
+    2. Has a 4-digit AU postcode AND (street suffix OR leading digit) →
+       address.
+    3. Has a leading digit run + a street-suffix keyword → address.
+    4. Has a 4-digit AU postcode (alone) → address. AU postcodes are
+       4-digit and rarely appear in pure location references.
+    5. Has a street-suffix keyword (no postcode/digit) → address. Pure
+       "Collins Street" is still an address fragment, not a location.
+    6. Otherwise → location. Pure suburb / region / state references
+       like "Melbourne", "NSW", "Greater Sydney", "the Yarra Valley".
+
+    The function takes only the span text — context is intentionally not
+    used here, because the caller (``resolve_account_numbers`` /
+    ``resolve_one``) already has access to the full source text via
+    other code paths if needed. Span-local rules give predictable
+    behaviour and are cheap to unit-test.
+    """
+    if not span_text:
+        return "location"
+    text = span_text.strip()
+    if not text:
+        return "location"
+
+    # 1. PO Box variants always resolve to address.
+    if _POSTAL_BOX_RE.search(text):
+        return "address"
+
+    has_street = bool(_AU_STREET_SUFFIX_RE.search(text))
+    has_postcode = bool(_AU_POSTCODE_RE.search(text))
+    has_street_number = bool(_STREET_NUMBER_RE.search(text))
+    has_state = bool(_STATE_TOKEN_RE.search(text))
+
+    # 2./3. Strong street-address signal: digits + street keyword OR
+    # digits + postcode. Both combinations are unambiguously address.
+    if has_street_number and (has_street or has_postcode):
+        return "address"
+
+    # 4. Has a 4-digit postcode — almost always address. A bare suburb
+    # name with no postcode would be tagged location; "Melbourne 3000"
+    # is more likely "postcode-bound suburb" which downstream policy
+    # still wants as ADDRESS so it stays redacted.
+    if has_postcode:
+        return "address"
+
+    # 5. Has a street-suffix keyword — address fragment. "Collins Street"
+    # alone is still a street name (address), not a location.
+    if has_street:
+        return "address"
+
+    # 6. Pure suburb / state / region / "Greater X" / "the Yarra Valley".
+    # If it's only a state token, definitely location.
+    if has_state and not has_street_number:
+        return "location"
+
+    return "location"
+
+
+def _looks_like_postal_address(span_text: str) -> bool:
+    """Convenience helper for callers that want a boolean address signal."""
+    return _disambiguate_address_vs_location(span_text) == "address"
 
 
 # --- Structural matchers for non-checksum AU IDs ----------------------------
@@ -175,7 +297,7 @@ def _label_prior(text: str, start: int, end: int, window: int = 40) -> PIICatego
     for separator in base_separators:
         sep_idx = snippet.rfind(separator)
         if sep_idx != -1:
-            snippet = snippet[sep_idx + len(separator):]
+            snippet = snippet[sep_idx + len(separator) :]
 
     # Phase 2.x widening: when the value is MRN-shaped AND the snippet
     # contains an MRN keyword, force MEDICAL_RECORD_NUMBER even if a
@@ -197,10 +319,10 @@ def _label_prior(text: str, start: int, end: int, window: int = 40) -> PIICatego
 # The order matters: try the most-specific checksum first so a string that
 # happens to satisfy multiple shapes gets the strongest possible label.
 _CHECKSUM_VALIDATORS: list[tuple[PIICategory, Callable[[str], bool]]] = [
-    (PIICategory.ABN, validate_abn),         # 11 digits
+    (PIICategory.ABN, validate_abn),  # 11 digits
     (PIICategory.MEDICARE, validate_medicare),  # 10-11 digits
-    (PIICategory.TFN, validate_tfn),          # 9 digits
-    (PIICategory.ACN, validate_acn),          # 9 digits
+    (PIICategory.TFN, validate_tfn),  # 9 digits
+    (PIICategory.ACN, validate_acn),  # 9 digits
     # BSB is format-only (6 digits) so it must come LAST, otherwise a 6-digit
     # prefix of an ABN/Medicare/TFN would be claimed by BSB.
     (PIICategory.BSB_ACCOUNT, validate_bsb),
@@ -215,7 +337,13 @@ def _try_checksum_validators(value: str) -> tuple[PIICategory, bool] | None:
             if validator(value):
                 return category, True
         except Exception as exc:  # noqa: BLE001
-            logger.debug("Validator %s threw on '%s': %s", category, value, exc)
+            # Never log the raw candidate value (SEC-02): log category + length only.
+            logger.debug(
+                "Validator %s raised on a %d-char candidate: %s",
+                category,
+                len(value or ""),
+                exc,
+            )
             continue
     # Note: digits-only fallback intentionally omitted — validators already
     # call _digits_only internally so they handle whitespace/dashes.
@@ -258,6 +386,7 @@ def _try_structural_matchers(value: str) -> PIICategory | None:
 
 
 # --- Public API --------------------------------------------------------------
+
 
 def resolve_one(
     value: str,
@@ -351,20 +480,32 @@ def resolve_account_numbers(
             )
         else:
             primary = OPENAI_TO_AU_PRIMARY.get(openai_cat, "generic_id")
+            # v0.4.3 — disambiguate `private_address` → address vs location.
+            # openai/privacy-filter collapses both into the same label; the
+            # span-local heuristic re-tags pure suburb/region/state spans
+            # as LOCATION while keeping street-bearing spans as ADDRESS.
+            if openai_cat == "private_address":
+                primary = _disambiguate_address_vs_location(value)
             try:
                 category = PIICategory(primary)
             except ValueError:
                 category = PIICategory.GENERIC_ID
             validator_passed = None
 
+        # Fail-closed parity (DEFECT #3): an AU ID resolved with a FAILED
+        # checksum (validator_passed is False, e.g. a label-bound TFN whose
+        # digits don't pass) must carry needs_review so the substrate path
+        # cannot report a clean pass where mock would have flagged review.
+        needs_review = validator_passed is False
         out.append(
             PIISpan(
                 category=category,
                 start=start,
                 end=end,
                 value=value,
-                confidence=1.0,
+                confidence=0.5 if needs_review else 1.0,
                 validator_passed=validator_passed,
+                needs_review=needs_review,
             )
         )
     return out

@@ -368,3 +368,107 @@ Royal Australian and New Zealand College of Radiologists
 Australian Medical Association
 Pharmacy Guild of Australia
 Australian Pharmaceutical Industries
+
+# --- v0.4.3 — extended top-tier AU law firms ---------------------------------
+Allens Linklaters Australia
+Arnold Bloch Leibler
+Bartier Perry
+Carter Newell Lawyers
+Clamenz Lawyers
+Clifford Chance Australia
+Colin Biggers & Paisley
+Cornwalls
+DLA Piper Australia
+DibbsBarker
+Dentons Australia
+Gadens
+Henry William Lawyers
+Hicksons
+Hogan Lovells Australia
+HopgoodGanim Lawyers
+Jackson McDonald
+K&L Gates Australia
+Kennedys Australia
+Lavan
+Lipman Karas
+Macpherson Kelley
+McCabe Curwood
+McInnes Wilson Lawyers
+Meridian Lawyers
+Moray & Agnew
+Norton Gledhill
+Norton White
+Pinsent Masons Australia
+Sparke Helmore
+Squire Patton Boggs Australia
+TressCox Lawyers
+Wotton + Kearney
+
+# --- v0.4.3 — top AU medical / aged care / hospital groups -------------------
+ICON Group
+ICON Cancer Centre
+Heritage Care
+Estia Health
+Regis Aged Care
+Bolton Clarke
+BlueCross Aged Care
+Opal HealthCare
+Allity Aged Care
+Arcare Aged Care
+Aurora Healthcare
+Healthe Care
+GenesisCare
+Montserrat Day Hospitals
+Nexus Hospitals
+Macquarie Health Corporation
+Adventist HealthCare
+St John of God Health Care
+UnitingCare Queensland
+Silver Chain Group
+Royal Flying Doctor Service
+Hammond Care
+HammondCare
+Anglicare
+Mission Australia
+Wesley Mission
+
+# --- v0.4.3 — top AU MedTech / health tech -----------------------------------
+Pro Medicus
+Audinate
+Nuix
+Nanosonics
+PolyNovo
+Medical Developments International
+Mesoblast
+Paradigm Biopharmaceuticals
+Avita Medical
+Telix Pharmaceuticals
+Imugene
+Volpara Health Technologies
+Atomo Diagnostics
+Compumedics
+ResApp Health
+Universal Biosensors
+EMVision Medical Devices
+Micro-X
+Next Science
+Aroa Biosurgery
+Race Oncology
+Neuren Pharmaceuticals
+Clinuvel Pharmaceuticals
+Starpharma
+Patrys
+
+# --- v0.4.3 — additional federal regulators / authorities --------------------
+Aged Care Quality and Safety Commission
+Fair Work Ombudsman
+Fair Work Commission
+Australian Skills Quality Authority
+Tertiary Education Quality and Standards Agency
+Australian Pesticides and Veterinary Medicines Authority
+Office of the eSafety Commissioner
+Office of the National Data Commissioner
+National Health and Medical Research Council
+NHMRC
+Cancer Australia
+Department of Health

@@ -4,11 +4,14 @@ Pre-ingestion PII de-identification for Australian government data.
 
 Implements the methodology from Wiest et al., *Deidentifying Medical Documents with Local, Privacy-Preserving Large Language Models* (NEJM AI, 2024), extended with Australian Commonwealth identifier detection and checksum validation.
 
-[![Tests](https://img.shields.io/badge/tests-137%2F137%20passing-brightgreen)](#testing)
+[![Tests](https://img.shields.io/badge/tests-198%2F198%20passing-brightgreen)](#testing)
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue)](#)
 [![License](https://img.shields.io/badge/license-MIT-green)](#)
 [![HF Hub](https://img.shields.io/badge/HF%20Hub-redact--au--1b-yellow)](https://huggingface.co/JimmyBhoy/redact-au-1b)
 
+> **v0.4.5 — Engine HTTP startup hardening + version reconciliation (2026-06-30).**
+> Fixed `api/main.py` startup crash when `PIIR_API_KEY` is unset; reconciled version strings; added FastAPI smoke tests. See `CHANGELOG.md` for the full changeset.
+>
 > **v0.4.1 — AU organisation + location recognisers (2026-05-20).** Per-sector
 > sensitivity lift +0.64 to +6.76 pp across federal/state-health/legal/medtech
 > benches; organisation per-category recall +13-56 pp; location +33 pp on
@@ -78,7 +81,7 @@ Validators that exist will drop invalid detections from the output. The validati
 
 All three tiers clear the Wiest et al. 99.4% sensitivity bar on the medical fixture (Wiest target = 99.4%; we hit 99.71% / 100% / 100%). The Gretel-100 fixture covers global+social PII broader than our AU-government wedge — Tier 2 closes that gap when the workload includes international phone formats, social handles, or foreign locality names.
 
-**Multi-sector v0.4.1 head-to-head** (920 docs across federal-gov / state-health / legal / medtech, vs Microsoft Presidio):
+**Multi-sector v0.4.1 head-to-head** (920 docs across federal-gov / state-health / legal / medtech, vs Microsoft Presidio). Scope: this is our **synthetic** evaluation suite scored against a vendor-configured Presidio baseline — not an independent benchmark. Our per-sector recall exceeded Presidio's but remains **below our own 99% publish floor**, so these are internal regression figures, not a marketing claim:
 
 | Sector | redact-au v0.4.1 (Tier 1) | Microsoft Presidio + AU regex | Δ |
 |---|---|---|---|
@@ -87,7 +90,7 @@ All three tiers clear the Wiest et al. 99.4% sensitivity bar on the medical fixt
 | legal-small-mid | **85.75%** | 69.92% | **+15.83 pp** |
 | medtech-health-ai | **91.57%** | 77.72% | **+13.85 pp** |
 
-100% recall on AU regulatory IDs (TFN/ABN/ACN/Medicare/IHI/MRN/BSB/Centrelink-CRN) with checksum validation across all four sectors. Per-category breakdown + leak taxonomy in the companion `redact-au` repo's `benchmarks/` directory.
+Checksum-validated AU regulatory IDs (TFN/ABN/ACN/Medicare/IHI/MRN/BSB/Centrelink-CRN) reached 100% recall **on the AU-synthetic held-out fixture only** — not across the general multi-sector suite above, where per-category recall is lower (e.g. ABN ~87%, ACN ~75%). Per-category breakdown + leak taxonomy in the companion `redact-au` repo's `benchmarks/` directory. Malformed/checksum-failing IDs are redacted fail-closed as suspected (flagged for review), never dropped.
 
 Per-leak diagnostics, severity grading, and full per-category recall are in `CHANGELOG.md` (v0.4.0 + v0.4.1) and the v0.0.x → v0.4.1 history under `.planning/`.
 
@@ -266,6 +269,6 @@ MIT
 
 ## Local project consolidation
 
-This project is now consolidated under `C:\Users\j_car\KnowledgeGraph\tools\pii-redactor`.
+This source checkout is now consolidated under `C:\Users\j_car\.00xxAIProjectsxx00\Redact-au\libs\pii-redactor`.
 
 Related reference material is kept in `docs/references/`, including the NEJM AI LLM-Anonymizer paper used to ground the de-identification design.

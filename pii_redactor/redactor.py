@@ -73,6 +73,7 @@ class Redactor:
                     confidence=s.confidence,
                     validator_passed=s.validator_passed,
                     placeholder=s.placeholder,
+                    needs_review=s.needs_review,
                 )
             )
         return out, safe_spans

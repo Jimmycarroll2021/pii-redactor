@@ -17,7 +17,6 @@ from __future__ import annotations
 
 from .models import PIICategory
 
-
 GBNF_TEMPLATE = r'''
 root        ::= "{" ws "\"pii\":" ws "[" ws (entity (ws "," ws entity)*)? ws "]" ws "}"
 entity      ::= "{" ws "\"category\":" ws category ws "," ws "\"value\":" ws string ws "}"

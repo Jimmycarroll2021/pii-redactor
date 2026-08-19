@@ -21,6 +21,7 @@ Design notes
   we need to round-trip to PIISpan.
 - The pipeline is constructed once and reused. Reset via .unload() if needed.
 """
+
 from __future__ import annotations
 
 import logging
@@ -56,6 +57,50 @@ OPENAI_TO_AU_PRIMARY = {
     "private_url": "url",
     "account_number": "generic_id",
     "secret": "generic_id",
+    # ai4privacy / piiranha label scheme (PIIR_HF_MODEL=iiiorg/piiranha-...).
+    # piiranha is a STOCK token-classification model (loads on plain
+    # transformers, unlike openai/privacy-filter's custom checkpoint) and wins
+    # the substrate bake-off (~0.99 recall on real ai4privacy, 2026-06-26).
+    # entity_group has the B-/I- prefix stripped by aggregation_strategy=simple.
+    # AU regulatory IDs (TFN/Medicare/ABN/BSB) are caught by the regex floor's
+    # checksum validators independently, so numeric labels map to generic_id.
+    "GIVENNAME": "name",
+    "SURNAME": "name",
+    "EMAIL": "email",
+    "TELEPHONENUM": "phone",
+    "CITY": "location",
+    "STREET": "address",
+    "BUILDINGNUM": "address",
+    "ZIPCODE": "address",
+    "DATEOFBIRTH": "date_of_birth",
+    "DRIVERLICENSENUM": "driver_licence",
+    "USERNAME": "generic_id",
+    "ACCOUNTNUM": "generic_id",
+    "TAXNUM": "generic_id",
+    "SOCIALNUM": "generic_id",
+    "IDCARDNUM": "generic_id",
+    "CREDITCARDNUMBER": "generic_id",
+    "PASSWORD": "generic_id",
+    # GLiNER label scheme (PIIR_BACKEND=transformers_au_gliner — Apache-2.0
+    # urchade/gliner_multi_pii-v1, the license-clean substrate). GLiNER emits the
+    # lowercase free-text prompt labels. AU regulatory IDs stay with the regex
+    # floor's checksum validators, so numeric labels map to generic_id.
+    "person": "name",
+    "organization": "organisation",
+    "address": "address",
+    "location": "location",
+    "email": "email",
+    "phone number": "phone",
+    "date of birth": "date_of_birth",
+    "date": "date",
+    "driver's license number": "driver_licence",
+    "passport number": "generic_id",
+    "credit card number": "generic_id",
+    "bank account number": "generic_id",
+    "tax identification number": "generic_id",
+    "social security number": "generic_id",
+    "username": "generic_id",
+    "ip address": "generic_id",
 }
 
 
@@ -82,12 +127,8 @@ class OpenAIPrivacyFilter:
         torch_dtype: str | None = None,
         score_threshold: float | None = None,
     ):
-        self.model_id = model_id or os.environ.get(
-            "PIIR_HF_MODEL", self.DEFAULT_MODEL_ID
-        )
-        self.aggregation_strategy = os.environ.get(
-            "PIIR_HF_AGGREGATION", aggregation_strategy
-        )
+        self.model_id = model_id or os.environ.get("PIIR_HF_MODEL", self.DEFAULT_MODEL_ID)
+        self.aggregation_strategy = os.environ.get("PIIR_HF_AGGREGATION", aggregation_strategy)
         if score_threshold is None:
             env_thr = os.environ.get("PIIR_HF_SCORE_THRESHOLD")
             score_threshold = (
@@ -149,9 +190,7 @@ class OpenAIPrivacyFilter:
 
     def warmup(
         self,
-        sample_text: str = (
-            "Hello, my name is Alice and my email is alice@example.com."
-        ),
+        sample_text: str = ("Hello, my name is Alice and my email is alice@example.com."),
     ) -> None:
         """Force model load + one inference to fault GPU memory."""
         self._ensure_loaded()
@@ -183,9 +222,7 @@ class OpenAIPrivacyFilter:
         """
         return [(c, s, e, v) for (c, s, e, v, _score) in self.predict_with_scores(text)]
 
-    def predict_with_scores(
-        self, text: str
-    ) -> list[tuple[str, int, int, str, float]]:
+    def predict_with_scores(self, text: str) -> list[tuple[str, int, int, str, float]]:
         """Same as predict() but also returns the per-span aggregator score.
 
         Used by the hybrid pipeline's llama-gate to decide whether the
@@ -239,7 +276,5 @@ class OpenAIPrivacyFilter:
             real_end = end - rstripped_len
             if real_end <= real_start:
                 continue
-            out.append(
-                (cat, real_start, real_end, text[real_start:real_end], score_f)
-            )
+            out.append((cat, real_start, real_end, text[real_start:real_end], score_f))
         return out

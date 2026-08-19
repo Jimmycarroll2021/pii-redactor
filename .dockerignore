@@ -1,0 +1,10 @@
+.venv/
+.git/
+scale-tests/
+tests/
+docs/
+benchmarks/
+**/__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/

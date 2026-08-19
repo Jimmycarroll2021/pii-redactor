@@ -8,11 +8,33 @@ A validator returning False filters out the detection. Returning True
 confirms it. Returning None means no validator exists for that category,
 and the LLM detection is trusted as-is.
 """
+
+# References:
+#   Australian Taxation Office (ATO) — Tax File Number (TFN) checksum.
+#   Mod-11 weighted-sum with weight vector [1, 4, 3, 7, 5, 8, 6, 9, 10]
+#   for the 9-digit format; supports both 8-digit (legacy) and 9-digit.
+#   https://www.ato.gov.au/individuals-and-families/tax-file-number
+#
+#   Australian Business Register (ABR) — ABN Lookup + 11-digit ABN checksum
+#   (mod-89 weighted-sum). Web service docs:
+#   https://abr.business.gov.au/Tools/WebServices
+#
+#   Australian Securities & Investments Commission (ASIC) — ACN 9-digit
+#   mod-10 weighted-sum checksum, used as the sanity check for the
+#   business-component of the ABN.
+#
+#   Australian Digital Health Agency (ADHA, formerly NEHTA) — Individual
+#   Healthcare Identifier (IHI) 16-digit specification + Luhn checksum.
+#   https://www.digitalhealth.gov.au/healthcare-providers/individual-healthcare-identifiers-ihi
+#
+#   All four retrieved 2026-05-21.
+#   See `docs/references/REFERENCES.md` (sections: ATO TFN, ABR ABN, ASIC ACN, IHI).
+
 from __future__ import annotations
 
-import re
 import os
-from typing import Callable, Optional
+import re
+from collections.abc import Callable
 
 from .models import PIICategory
 
@@ -36,7 +58,7 @@ def validate_tfn(value: str) -> bool:
         return False
     if int(digits) == 0:  # reject trivial all-zero
         return False
-    total = sum(int(d) * w for d, w in zip(digits, weights))
+    total = sum(int(d) * w for d, w in zip(digits, weights, strict=True))
     return total % 11 == 0
 
 
@@ -54,7 +76,7 @@ def validate_abn(value: str) -> bool:
     nums = [int(d) for d in digits]
     nums[0] -= 1
     weights = [10, 1, 3, 5, 7, 9, 11, 13, 15, 17, 19]
-    total = sum(n * w for n, w in zip(nums, weights))
+    total = sum(n * w for n, w in zip(nums, weights, strict=True))
     return total % 89 == 0
 
 
@@ -69,7 +91,7 @@ def validate_acn(value: str) -> bool:
     if int(digits) == 0:
         return False
     weights = [8, 7, 6, 5, 4, 3, 2, 1]
-    total = sum(int(d) * w for d, w in zip(digits[:8], weights))
+    total = sum(int(d) * w for d, w in zip(digits[:8], weights, strict=True))
     check = (10 - (total % 10)) % 10
     return check == int(digits[8])
 
@@ -87,7 +109,7 @@ def validate_medicare(value: str) -> bool:
     if int(digits) == 0:
         return False
     weights = [1, 3, 7, 9, 1, 3, 7, 9]
-    total = sum(int(d) * w for d, w in zip(digits[:8], weights))
+    total = sum(int(d) * w for d, w in zip(digits[:8], weights, strict=True))
     check_digit = total % 10
     return check_digit == int(digits[8])
 
@@ -154,19 +176,26 @@ PATTERNS: dict[PIICategory, re.Pattern[str]] = {
         r"|04\d{2}[\s.-]?\d{3}[\s.-]?\d{3}"
         # Generic international with leading + and parens, with optional extension.
         r"|\+\d{1,3}[\s.-]?\(\d{2,4}\)[\s.-]?\d{3,5}[\s.-]?\d{3,4}(?:\s*(?:x|ext\.?|extension)\s*\d{1,6})?"
+        # International trunk-prefix form: +CC(0)AREA LOCAL (e.g. +44(0)20 7496 0765).
+        r"|\+\d{1,3}\(0\)[\s.-]?\d{1,4}[\s.-]?\d{3,4}[\s.-]?\d{3,4}"
         # Generic international with leading + and dotted/dashed groups (e.g. +1 555-123-4567).
         r"|\+\d{1,3}[\s.-]?\d{3,5}[\s.-]\d{3,4}(?:[\s.-]\d{2,6})?(?:\s*(?:x|ext\.?|extension)\s*\d{1,6})?"
+        # Broad international fallback: +CC then 2-4 separator-led groups of 2-5 digits
+        # (e.g. +27 68 670 7513, +91-39941 98087). The leading + keeps FP risk low.
+        r"|\+\d{1,3}(?:[\s.-]\d{2,5}){2,4}"
         # Leading country digit + bracketed area: 1 (XXX) XXX-XXXX.
         r"|\d[\s.-]?\(\d{2,4}\)[\s.-]?\d{3,5}[\s.-]?\d{3,4}(?:\s*(?:x|ext\.?|extension)\s*\d{1,6})?"
         # Bracketed area code with any separator: (XXX) XXX-XXXX or (XXXX) XXX XXXX, optional ext.
         r"|\(\d{2,4}\)[\s.-]?\d{3,5}[\s.-]?\d{3,4}(?:\s*(?:x|ext\.?|extension)\s*\d{1,6})?"
         # Dashed: XXX-XXX-XXXX or XXXX-XXXX.
         r"|\d{3}-\d{3}-\d{4}"
-        r"|\d{4}-\d{4}"
+        # 8-digit local number, space/dot/dash grouped (e.g. 9423 5043, 9218.0642).
+        r"|\d{4}[\s.-]\d{4}"
         # Dotted: XXX.XXX.XXXX.
         r"|\d{3}\.\d{3}\.\d{4}"
-        # UK-style 11-digit bare: 028 9018 0925 (3-4-4 leading 0).
-        r"|0\d{2}[\s]\d{4}[\s]\d{4}"
+        # Leading-0 national, space/dot grouped: 3-4-4, 4-3-4 or 4-4-4
+        # (e.g. 028 9018 0925, 0151 496 0156, 0701 369 4303).
+        r"|0\d{2,4}[\s.]\d{3,4}[\s.]\d{3,4}"
         r")(?!\d)",
         re.IGNORECASE,
     ),
@@ -178,7 +207,7 @@ PATTERNS: dict[PIICategory, re.Pattern[str]] = {
         r"@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}(?![A-Za-z0-9])"
     ),
     PIICategory.URL: re.compile(
-        r"(?:"  
+        r"(?:"
         r"\b(?:https?://|tps://|www\.)[\w./\-?=&%#:@]+"
         r"|(?<![@\w])(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,62}[A-Za-z0-9])?\.)+[A-Za-z]{2,}(?:/[\w./\-?=&%#:@]*)?(?![A-Za-z0-9_-])"
         r")",
@@ -253,7 +282,7 @@ _VALIDATORS: dict[PIICategory, Callable[[str], bool]] = {
 }
 
 
-def get_validator(category: PIICategory) -> Optional[Callable[[str], bool]]:
+def get_validator(category: PIICategory) -> Callable[[str], bool] | None:
     """Return a validator function for the category, or None if none exists."""
     return _VALIDATORS.get(category)
 
@@ -285,7 +314,11 @@ def _is_suppressed_regex_hit(
             return True
         if _BENIGN_USERNAME_TOKEN_RE.match(stripped):
             return True
-        if lowered in {"snake_case_tokens", "markdown_headers", "service_timeout_ms", "retry_limit", "enable_cache", "log_level"}:
+        suppress_tokens = {
+            "snake_case_tokens", "markdown_headers", "service_timeout_ms",
+            "retry_limit", "enable_cache", "log_level",
+        }
+        if lowered in suppress_tokens:
             return True
     if category == PIICategory.URL:
         if lowered in {"localhost"}:
@@ -309,7 +342,11 @@ def regex_first_pass(text: str) -> list[tuple[PIICategory, int, int, str]]:
     for category, pattern in PATTERNS.items():
         for match in pattern.finditer(text):
             value_group = None
-            for candidate in ("value", "context_value", "ellipsis_value", "labelled", "codepair", "ssn", "spacedid", "mixedid", "commaid", "longnum"):
+            candidates = (
+                "value", "context_value", "ellipsis_value", "labelled", "codepair",
+                "ssn", "spacedid", "mixedid", "commaid", "longnum",
+            )
+            for candidate in candidates:
                 if candidate in pattern.groupindex and match.group(candidate):
                     value_group = candidate
                     break

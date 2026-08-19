@@ -12,6 +12,9 @@ Endpoints:
 - GET  /info            Backend, model name, version
 
 API key authentication via the X-API-Key header. Set PIIR_API_KEY in env.
+Auth is fail-closed: with no key set, redaction endpoints reject (401) unless
+PIIR_ALLOW_NO_AUTH=true is set for explicit local-only use. /reidentify needs a
+dedicated PIIR_REIDENTIFY_API_KEY (no fallback to PIIR_API_KEY).
 
 Scale notes
 -----------
@@ -25,28 +28,90 @@ For 100k docs/day with a GPU-backed llama.cpp server:
   - Semaphore of 8 keeps the GPU saturated without overwhelming it
   - Connection pooling in LlamaCppClient means no TCP reconnection overhead
 """
+
 from __future__ import annotations
 
 import asyncio
 import logging
 import os
-import secrets
 import threading
 import time
-from typing import Optional
+from collections.abc import AsyncGenerator
+from contextlib import asynccontextmanager
 
 from fastapi import Depends, FastAPI, Header, HTTPException, status
 from pydantic import BaseModel, Field
 
-from pii_redactor import Config, __version__, build_pipeline
+from pii_redactor import Config, __version__, build_pipeline, http_auth
 from pii_redactor.detector import PIIExtractionError
 from pii_redactor.pipeline import Pipeline
 
 logger = logging.getLogger(__name__)
 
+
+@asynccontextmanager
+async def _lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
+    # Initialise semaphore inside the event loop and warm up the pipeline.
+    get_semaphore()
+    get_pipeline()
+
+    if _env_truthy("PIIR_REQUIRE_API_KEY") and not os.environ.get("PIIR_API_KEY"):
+        raise RuntimeError("PIIR_REQUIRE_API_KEY=true but PIIR_API_KEY is not set.")
+
+    if _env_truthy("PIIR_REQUIRE_PRODUCTION_SAFETY"):
+        missing = []
+        cfg = Config.from_env()
+        if not os.environ.get("PIIR_API_KEY"):
+            missing.append("PIIR_API_KEY")
+        if not os.environ.get("PIIR_REIDENTIFY_API_KEY"):
+            missing.append("PIIR_REIDENTIFY_API_KEY")
+        if not os.environ.get("PIIR_AUDIT_KEY"):
+            missing.append("PIIR_AUDIT_KEY")
+        if not _env_truthy("PIIR_FAIL_ON_LLM_ERROR"):
+            missing.append("PIIR_FAIL_ON_LLM_ERROR=true")
+        if cfg.backend == "mock":
+            missing.append("PIIR_BACKEND must not be mock")
+        if missing:
+            raise RuntimeError(
+                "PIIR_REQUIRE_PRODUCTION_SAFETY=true but required settings are missing: "
+                + ", ".join(missing)
+            )
+
+    # Fail-closed on a non-loopback (externally reachable) bind without auth.
+    if http_auth.public_bind_without_auth():
+        raise RuntimeError(
+            "PIIR_PUBLIC_BIND=true requires PIIR_API_KEY: refusing to serve an "
+            "unauthenticated redaction API on a non-loopback bind. Set PIIR_API_KEY. "
+            "PIIR_ALLOW_NO_AUTH does NOT override a public bind (local-only opt-out)."
+        )
+
+    if not os.environ.get("PIIR_API_KEY"):
+        if http_auth.auth_disabled_ok():
+            logger.warning(
+                "PIIR_API_KEY not set and PIIR_ALLOW_NO_AUTH=true: the redaction API "
+                "is UNAUTHENTICATED. Local-only use only; never expose this bind."
+            )
+        else:
+            logger.warning(
+                "PIIR_API_KEY not set. Redaction endpoints will reject requests with "
+                "401 (fail-closed). Set PIIR_API_KEY, or PIIR_ALLOW_NO_AUTH=true for "
+                "explicit local-only use."
+            )
+    if not os.environ.get("PIIR_REIDENTIFY_API_KEY"):
+        logger.warning(
+            "PIIR_REIDENTIFY_API_KEY not set. /reidentify requires a dedicated key "
+            "(it does NOT fall back to PIIR_API_KEY) and will reject with 401 unless "
+            "PIIR_ALLOW_NO_AUTH=true."
+        )
+    max_concurrency = int(os.environ.get("PIIR_MAX_CONCURRENCY", "8"))
+    logger.info("PII Redactor started. max_concurrency=%d", max_concurrency)
+    yield
+
+
 app = FastAPI(
     title="PII Redactor",
     version=__version__,
+    lifespan=_lifespan,
     description=(
         "Pre-ingestion PII de-identification using zero-shot LLM detection "
         "with Australian government identifier checksum validation. "
@@ -54,9 +119,33 @@ app = FastAPI(
     ),
 )
 
+_cors_origins_env = os.environ.get("PIIR_CORS_ORIGINS", "")
+_cors_origins = [o.strip() for o in _cors_origins_env.split(",") if o.strip()]
+if _cors_origins:
+    from fastapi.middleware.cors import CORSMiddleware
+
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=_cors_origins,
+        allow_credentials=True,
+        allow_methods=["GET", "POST", "OPTIONS"],
+        allow_headers=["*"],
+    )
+
+
+@app.middleware("http")
+async def add_security_headers(request, call_next):
+    response = await call_next(request)
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["Content-Security-Policy"] = "default-src 'none'; frame-ancestors 'none'"
+    response.headers["Referrer-Policy"] = "no-referrer"
+    response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+    return response
+
 # Built once at startup
-_pipeline: Optional[Pipeline] = None
-_semaphore: Optional[asyncio.Semaphore] = None
+_pipeline: Pipeline | None = None
+_semaphore: asyncio.Semaphore | None = None
 _metrics_lock = threading.Lock()
 _metrics = {
     "documents_processed": 0,
@@ -85,12 +174,9 @@ def get_semaphore() -> asyncio.Semaphore:
 
 # ------------------------------------------------------------- auth dependency
 
+
 def _env_truthy(name: str) -> bool:
     return os.environ.get(name, "").lower() in {"1", "true", "yes", "on"}
-
-
-def _compare_key(provided: str, expected: str) -> bool:
-    return secrets.compare_digest(provided.encode("utf-8"), expected.encode("utf-8"))
 
 
 def _env_int(name: str, default: int) -> int:
@@ -134,32 +220,23 @@ def _record_error() -> None:
 
 
 def require_api_key(x_api_key: str = Header(default="")) -> None:
-    expected = os.environ.get("PIIR_API_KEY")
-    if not expected:
-        return  # No key set means auth is disabled. Loud warning at startup.
-    if not _compare_key(x_api_key, expected):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or missing X-API-Key header.",
-        )
+    error = http_auth.redaction_auth_error(x_api_key)
+    if error:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=error)
 
 
 def require_reidentify_api_key(x_api_key: str = Header(default="")) -> None:
-    expected = os.environ.get("PIIR_REIDENTIFY_API_KEY") or os.environ.get("PIIR_API_KEY")
-    if not expected:
-        return
-    if not _compare_key(x_api_key, expected):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or missing re-identification API key.",
-        )
+    error = http_auth.reidentify_auth_error(x_api_key)
+    if error:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=error)
 
 
 # ----------------------------------------------------------------- schemas
 
+
 class RedactRequest(BaseModel):
     text: str = Field(..., min_length=1)
-    document_id: Optional[str] = None
+    document_id: str | None = None
 
 
 class RedactBatchRequest(BaseModel):
@@ -170,9 +247,9 @@ class SpanModel(BaseModel):
     category: str
     start: int
     end: int
-    placeholder: Optional[str]
+    placeholder: str | None
     confidence: float
-    validator_passed: Optional[bool]
+    validator_passed: bool | None
 
 
 class RedactResponse(BaseModel):
@@ -183,8 +260,8 @@ class RedactResponse(BaseModel):
     pii_table: list[dict]
     audit_id: str
     processed_at: str
-    model_used: Optional[str]
-    processing_ms: Optional[float] = None
+    model_used: str | None
+    processing_ms: float | None = None
 
 
 class ReidentifyRequest(BaseModel):
@@ -192,6 +269,7 @@ class ReidentifyRequest(BaseModel):
 
 
 # ----------------------------------------------------------------- endpoints
+
 
 @app.get("/health")
 def health() -> dict:
@@ -206,9 +284,7 @@ def health() -> dict:
     # v0.4.0: when the finetuned backend is selected, surface the adapter id
     # in /health so orchestrators can confirm the right LoRA is loaded.
     if backend == "transformers_au_finetuned":
-        adapter_path = os.environ.get(
-            "PIIR_LORA_ADAPTER", "/mnt/ai/adapters/redact-au-1b/best"
-        )
+        adapter_path = os.environ.get("PIIR_LORA_ADAPTER", "/mnt/ai/adapters/redact-au-1b/best")
         payload["adapter"] = os.path.basename(adapter_path.rstrip("/")) or "redact-au-1b"
         payload["adapter_path"] = adapter_path
     if backend in {"transformers_au", "transformers_au_finetuned"}:
@@ -376,48 +452,6 @@ def reidentify(req: ReidentifyRequest) -> list[dict]:
     try:
         return pipeline.audit.reidentify(req.audit_id)
     except RuntimeError as exc:
-        raise HTTPException(status_code=400, detail=str(exc))
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
-# ----------------------------------------------------------------- startup
-
-@app.on_event("startup")
-async def startup() -> None:
-    # Initialise semaphore inside the event loop
-    get_semaphore()
-    get_pipeline()
-
-    if _env_truthy("PIIR_REQUIRE_API_KEY") and not os.environ.get("PIIR_API_KEY"):
-        raise RuntimeError("PIIR_REQUIRE_API_KEY=true but PIIR_API_KEY is not set.")
-
-    if _env_truthy("PIIR_REQUIRE_PRODUCTION_SAFETY"):
-        missing = []
-        cfg = Config.from_env()
-        if not os.environ.get("PIIR_API_KEY"):
-            missing.append("PIIR_API_KEY")
-        if not os.environ.get("PIIR_REIDENTIFY_API_KEY"):
-            missing.append("PIIR_REIDENTIFY_API_KEY")
-        if not os.environ.get("PIIR_AUDIT_KEY"):
-            missing.append("PIIR_AUDIT_KEY")
-        if not _env_truthy("PIIR_FAIL_ON_LLM_ERROR"):
-            missing.append("PIIR_FAIL_ON_LLM_ERROR=true")
-        if cfg.backend == "mock":
-            missing.append("PIIR_BACKEND must not be mock")
-        if missing:
-            raise RuntimeError(
-                "PIIR_REQUIRE_PRODUCTION_SAFETY=true but required settings are missing: "
-                + ", ".join(missing)
-            )
-
-    if not os.environ.get("PIIR_API_KEY"):
-        logger.warning(
-            "PIIR_API_KEY not set. The redaction API is unauthenticated. "
-            "Set this in production."
-        )
-    if os.environ.get("PIIR_API_KEY") and not os.environ.get("PIIR_REIDENTIFY_API_KEY"):
-        logger.warning(
-            "PIIR_REIDENTIFY_API_KEY not set. /reidentify falls back to PIIR_API_KEY. "
-            "Set a separate key for production re-identification workflows."
-        )
-    max_concurrency = int(os.environ.get("PIIR_MAX_CONCURRENCY", "8"))
-    logger.info("PII Redactor started. max_concurrency=%d", max_concurrency)

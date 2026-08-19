@@ -5,7 +5,6 @@ import os
 from copy import deepcopy
 from typing import Any
 
-
 POLICY_PROFILES: dict[str, dict[str, Any]] = {
     "kg_rag_default": {
         "description": "High-recall pre-ingestion firewall for KG/RAG pipelines.",

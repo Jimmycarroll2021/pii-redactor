@@ -27,8 +27,7 @@ import json
 import re
 import threading
 import time
-from typing import Any, Optional, Protocol
-
+from typing import Any, Protocol
 
 # ── Per-thread HTTP session (connection pooling without thread-safety issues) ─
 
@@ -78,7 +77,7 @@ class LLMClient(Protocol):
         self,
         system_prompt: str,
         user_prompt: str,
-        grammar: Optional[str] = None,
+        grammar: str | None = None,
         temperature: float = 0.1,
         max_tokens: int = 2048,
     ) -> str:
@@ -111,7 +110,7 @@ class LlamaCppClient:
         self,
         system_prompt: str,
         user_prompt: str,
-        grammar: Optional[str] = None,
+        grammar: str | None = None,
         temperature: float = 0.1,
         max_tokens: int = 2048,
     ) -> str:
@@ -147,7 +146,7 @@ class HFInferenceClient:
     def __init__(
         self,
         model_id: str = "meta-llama/Meta-Llama-3.1-8B-Instruct",
-        token: Optional[str] = None,
+        token: str | None = None,
     ):
         from huggingface_hub import InferenceClient  # local import
 
@@ -158,7 +157,7 @@ class HFInferenceClient:
         self,
         system_prompt: str,
         user_prompt: str,
-        grammar: Optional[str] = None,
+        grammar: str | None = None,
         temperature: float = 0.1,
         max_tokens: int = 2048,
     ) -> str:
@@ -194,7 +193,7 @@ class OllamaClient:
         model: str = "llama3",
         timeout: float = 120.0,
         retries: int = 3,
-        extra_options: Optional[dict[str, Any]] = None,
+        extra_options: dict[str, Any] | None = None,
     ):
         self.base_url = base_url.rstrip("/")
         self.name = model
@@ -206,7 +205,7 @@ class OllamaClient:
         self,
         system_prompt: str,
         user_prompt: str,
-        grammar: Optional[str] = None,
+        grammar: str | None = None,
         temperature: float = 0.1,
         max_tokens: int = 2048,
     ) -> str:
@@ -263,7 +262,7 @@ class MockClient:
         self,
         system_prompt: str,
         user_prompt: str,
-        grammar: Optional[str] = None,
+        grammar: str | None = None,
         temperature: float = 0.1,
         max_tokens: int = 2048,
     ) -> str:

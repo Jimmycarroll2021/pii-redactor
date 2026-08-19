@@ -6,11 +6,8 @@ of the LLM, and that results from both paths merge without duplicates.
 import json
 import re
 
-import pytest
-
 from pii_redactor.detector import PIIDetector
 from pii_redactor.models import PIICategory, PIISpan
-from pii_redactor.validators import regex_first_pass
 
 
 class NoopClient:
@@ -77,25 +74,37 @@ class TestRegexPrepassAlone:
 
 
 # ---------------------------------------------------------------------------
-# Checksum validation filters false positives
+# Checksum validation is fail-CLOSED (VULN-01 / SEC-01)
+#
+# A token shaped like a regulated ID but failing its checksum is *suspected*
+# PII, not safe: it is still redacted (so no cleartext residue survives) and
+# flagged validator_passed=False / needs_review=True. A valid ID passes cleanly
+# without a review flag.
 # ---------------------------------------------------------------------------
 
 class TestChecksumFiltering:
-    def test_invalid_tfn_dropped(self):
-        # 123 456 789 has wrong checksum
+    def test_invalid_tfn_redacted_and_flagged(self):
+        # 123 456 789 has wrong checksum — must NOT be dropped (would leak the
+        # tail via a shorter overlapping match). It is retained, flagged.
         det = _make_detector(NoopClient())
         spans = det.detect("TFN: 123 456 789")
-        assert not any(s.category == PIICategory.TFN for s in spans)
+        covering = [s for s in spans if s.start <= 5 and s.end >= 16]
+        assert covering, "malformed TFN must remain covered by a redaction span"
+        assert any(s.needs_review and s.validator_passed is False for s in spans)
 
-    def test_invalid_abn_dropped(self):
+    def test_invalid_abn_redacted_and_flagged(self):
         det = _make_detector(NoopClient())
         spans = det.detect("ABN: 12 345 678 901")
-        assert not any(s.category == PIICategory.ABN for s in spans)
+        assert any(s.needs_review and s.validator_passed is False for s in spans)
+        # The full malformed value must be covered by detection spans (no residue).
+        assert any(s.end - s.start >= len("12 345 678 901") for s in spans)
 
-    def test_valid_tfn_kept(self):
+    def test_valid_tfn_kept_without_review_flag(self):
         det = _make_detector(NoopClient())
         spans = det.detect("TFN 123 456 782")
-        assert any(s.category == PIICategory.TFN for s in spans)
+        tfn = [s for s in spans if s.category == PIICategory.TFN]
+        assert tfn
+        assert all(not s.needs_review for s in tfn)
 
 
 # ---------------------------------------------------------------------------
