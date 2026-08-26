@@ -155,6 +155,19 @@ PATTERNS: dict[PIICategory, re.Pattern[str]] = {
         r"\s*[:#-]?\s*(?P<value>\d{4}[\s-]?\d{4}[\s-]?\d{4}[\s-]?\d{4})\b",
         re.IGNORECASE,
     ),
+    # Regex has no general free-text NER, so a bare capitalised word pair is
+    # too false-positive-prone to redact on its own (e.g. "Northbourne
+    # Avenue", "New Zealand"). Anchoring to an explicit label keeps this a
+    # high-precision backstop for the regex-only path (MockClient / no LLM
+    # backend configured) rather than a name detector, matching the pattern
+    # already used for PATIENT_ID / MEDICAL_RECORD_NUMBER above.
+    PIICategory.NAME: re.compile(
+        r"\b(?:contact|name|patient|client|customer|attn|attention|"
+        r"emergency\s*contact|next\s*of\s*kin|account\s*holder|"
+        r"policy\s*holder|applicant|guardian)"
+        r"\s*[:#-]\s*(?P<value>[A-Z][a-z'-]+(?:\s+[A-Z][a-z'-]+){1,3})\b",
+        re.IGNORECASE,
+    ),
     # PASSPORT before DRIVER_LICENCE: both match e.g. "PA1234567" (2 letters + 7 digits);
     # PASSPORT is more specific so it takes priority when they tie on span length.
     PIICategory.PASSPORT: re.compile(r"\b[A-Z]{1,2}\d{7}\b"),
@@ -315,8 +328,12 @@ def _is_suppressed_regex_hit(
         if _BENIGN_USERNAME_TOKEN_RE.match(stripped):
             return True
         suppress_tokens = {
-            "snake_case_tokens", "markdown_headers", "service_timeout_ms",
-            "retry_limit", "enable_cache", "log_level",
+            "snake_case_tokens",
+            "markdown_headers",
+            "service_timeout_ms",
+            "retry_limit",
+            "enable_cache",
+            "log_level",
         }
         if lowered in suppress_tokens:
             return True
@@ -343,8 +360,16 @@ def regex_first_pass(text: str) -> list[tuple[PIICategory, int, int, str]]:
         for match in pattern.finditer(text):
             value_group = None
             candidates = (
-                "value", "context_value", "ellipsis_value", "labelled", "codepair",
-                "ssn", "spacedid", "mixedid", "commaid", "longnum",
+                "value",
+                "context_value",
+                "ellipsis_value",
+                "labelled",
+                "codepair",
+                "ssn",
+                "spacedid",
+                "mixedid",
+                "commaid",
+                "longnum",
             )
             for candidate in candidates:
                 if candidate in pattern.groupindex and match.group(candidate):
