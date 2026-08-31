@@ -29,6 +29,16 @@ class TestNamePatternDirect:
         assert match is not None
         assert match.group("value") == "Jamie Patel"
 
+    def test_label_matching_remains_case_insensitive(self) -> None:
+        cases = [
+            ("contact: Jamie Patel", "Jamie Patel"),
+            ("EMERGENCY CONTACT: Alex Nguyen", "Alex Nguyen"),
+        ]
+        for text, expected in cases:
+            match = PATTERNS[PIICategory.NAME].search(text)
+            assert match is not None, f"no match for {text!r}"
+            assert match.group("value") == expected
+
     def test_various_labels_match(self) -> None:
         cases = [
             ("Name: John Smith", "John Smith"),
@@ -52,6 +62,15 @@ class TestNamePatternDirect:
     def test_common_capitalised_phrase_not_matched(self) -> None:
         # Guards against the label list swallowing ordinary prose.
         assert PATTERNS[PIICategory.NAME].search("Northbourne Avenue, Canberra") is None
+
+    def test_lowercase_phrases_after_supported_labels_not_matched(self) -> None:
+        cases = [
+            "Contact: service timeout",
+            "Customer: pending review",
+            "Patient: follow up required",
+        ]
+        for text in cases:
+            assert PATTERNS[PIICategory.NAME].search(text) is None, text
 
 
 class TestJamiePatelLeakFixture:
@@ -82,3 +101,8 @@ class TestJamiePatelLeakFixture:
         result = pipeline.process_document(self.TEXT)
         assert "Jamie Patel" not in result.redacted_text
         assert "[REDACTED_NAME_001]" in result.redacted_text
+
+    def test_mock_backend_ignores_lowercase_contact_phrase(self) -> None:
+        det = PIIDetector(llm_client=MockClient(), use_grammar=False)
+        spans = det.detect("Contact: service timeout")
+        assert not [s for s in spans if s.category == PIICategory.NAME]

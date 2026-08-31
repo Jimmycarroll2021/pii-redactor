@@ -162,11 +162,10 @@ PATTERNS: dict[PIICategory, re.Pattern[str]] = {
     # backend configured) rather than a name detector, matching the pattern
     # already used for PATIENT_ID / MEDICAL_RECORD_NUMBER above.
     PIICategory.NAME: re.compile(
-        r"\b(?:contact|name|patient|client|customer|attn|attention|"
+        r"\b(?i:(?:contact|name|patient|client|customer|attn|attention|"
         r"emergency\s*contact|next\s*of\s*kin|account\s*holder|"
-        r"policy\s*holder|applicant|guardian)"
-        r"\s*[:#-]\s*(?P<value>[A-Z][a-z'-]+(?:\s+[A-Z][a-z'-]+){1,3})\b",
-        re.IGNORECASE,
+        r"policy\s*holder|applicant|guardian))"
+        r"\s*[:#-]\s*(?P<value>(?-i:[A-Z](?:[a-z]+)?(?:['-][A-Z][a-z]+)*(?:\s+[A-Z](?:[a-z]+)?(?:['-][A-Z][a-z]+)*){1,3}))\b"
     ),
     # PASSPORT before DRIVER_LICENCE: both match e.g. "PA1234567" (2 letters + 7 digits);
     # PASSPORT is more specific so it takes priority when they tie on span length.
