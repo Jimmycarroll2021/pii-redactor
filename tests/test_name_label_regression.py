@@ -1,18 +1,18 @@
 """Regression: label-anchored names must be detected by the regex-only path.
 
 `validators.PATTERNS` had no `PIICategory.NAME` entry at all, so `MockClient`
-— the library's zero-config default backend (`PIIR_BACKEND=mock`, used by
-`Config.from_env()` and the Gradio demo's fallback) — never redacted names.
-"Contact: Jamie Patel" from the library's own shipped demo fixture
-(`app.py` EXAMPLES) leaked "Jamie Patel" verbatim through the full
+- the library's zero-config default backend (`PIIR_BACKEND=mock`, used by
+`Config.from_env()` and the Gradio demo's fallback) - never redacted names.
+`Contact: Jamie Patel` from the library's own shipped demo fixture
+(`app.py` EXAMPLES) leaked `Jamie Patel` verbatim through the full
 pipeline. RUNTIME-01.
 
 The fix is a high-precision, label-anchored regex (mirrors the existing
-PATIENT_ID / MEDICAL_RECORD_NUMBER pattern style) — not general free-text
+PATIENT_ID / MEDICAL_RECORD_NUMBER pattern style) - not general free-text
 NER, which the regex-only path cannot do without unacceptable false
-positives. Unlabelled names (e.g. "Sarah Mitchell" in the first EXAMPLES
-fixture) remain out of scope for the regex path; that gap is closed by the
-LLM/hybrid backends, not this fix.
+positives. Generic `Name:` fields stay out of the engine regex so the
+workspace signature-context safety net can keep its dedicated
+`SIGNATURE_NAME` placeholders.
 """
 
 from __future__ import annotations
@@ -41,7 +41,6 @@ class TestNamePatternDirect:
 
     def test_various_labels_match(self) -> None:
         cases = [
-            ("Name: John Smith", "John Smith"),
             ("Patient: Mary-Anne O'Connor", "Mary-Anne O'Connor"),
             ("Client - David Lee", "David Lee"),
             ("Attn: Sarah Jane Wilson", "Sarah Jane Wilson"),
@@ -52,8 +51,11 @@ class TestNamePatternDirect:
             assert match is not None, f"no match for {text!r}"
             assert match.group("value") == expected
 
+    def test_generic_name_label_not_matched(self) -> None:
+        assert PATTERNS[PIICategory.NAME].search("Name: John Smith") is None
+
     def test_unlabelled_name_not_matched(self) -> None:
-        # Confirms this stays a label-anchored backstop, not free-text NER —
+        # Confirms this stays a label-anchored backstop, not free-text NER -
         # a bare capitalised word pair with no label must not fire.
         assert (
             PATTERNS[PIICategory.NAME].search("Please update the case for Sarah Mitchell") is None

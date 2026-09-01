@@ -162,7 +162,7 @@ PATTERNS: dict[PIICategory, re.Pattern[str]] = {
     # backend configured) rather than a name detector, matching the pattern
     # already used for PATIENT_ID / MEDICAL_RECORD_NUMBER above.
     PIICategory.NAME: re.compile(
-        r"\b(?i:(?:contact|name|patient|client|customer|attn|attention|"
+        r"\b(?i:(?:contact|patient|client|customer|attn|attention|"
         r"emergency\s*contact|next\s*of\s*kin|account\s*holder|"
         r"policy\s*holder|applicant|guardian))"
         r"\s*[:#-]\s*(?P<value>(?-i:[A-Z](?:[a-z]+)?(?:['-][A-Z][a-z]+)*(?:\s+[A-Z](?:[a-z]+)?(?:['-][A-Z][a-z]+)*){1,3}))\b"
